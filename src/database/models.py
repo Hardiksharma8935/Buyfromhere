@@ -30,4 +30,7 @@ class Transaction(Base):
     from datetime import datetime
 # ...
     # Remove timezone.utc
-    created_at = Column(DateTime, default=datetime.utcnow)
+    from datetime import datetime, timezone
+# ...
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    
