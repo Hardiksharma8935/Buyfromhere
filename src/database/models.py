@@ -27,5 +27,7 @@ class Transaction(Base):
     crypto_coin = Column(String, nullable=True) # 'BTC', 'USDT', etc.
     status = Column(String, default='Pending') # 'Pending', 'Approved', 'Rejected'
     screenshot_id = Column(String, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-  
+    from datetime import datetime
+# ...
+    # Remove timezone.utc
+    created_at = Column(DateTime, default=datetime.utcnow)
