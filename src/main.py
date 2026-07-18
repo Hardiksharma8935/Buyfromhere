@@ -8,11 +8,11 @@ from src.handlers.start import start_command, verify_captcha
 from src.handlers.profile import handle_profile, handle_main_channel, handle_support
 from src.handlers.payment import (
     start_deposit, choose_currency, receive_amount, choose_method, 
-    choose_crypto_coin, ask_for_proof, receive_screenshot, cancel_deposit, admin_deposit_action
+    choose_crypto_coin, receive_gc_code, ask_for_proof, receive_screenshot, cancel_deposit, admin_deposit_action
 )
 from src.handlers.buy import (
     handle_demo, demo_select_callback, start_buy_groups, buy_choose_currency, buy_choose_method,
-    buy_process_method, buy_crypto_coin_selected, buy_ask_proof, buy_receive_proof, admin_buy_action,
+    buy_process_method, buy_crypto_coin_selected, buy_receive_gc_code, buy_ask_proof, buy_receive_proof, admin_buy_action,
     precheckout_callback, successful_payment_callback
 )
 from src.handlers.admin import start_broadcast, receive_broadcast, add_balance, remove_balance
@@ -36,6 +36,7 @@ async def post_init(application: Application):
 def main():
     app = Application.builder().token(settings.bot_token.get_secret_value()).post_init(post_init).build()
     app.add_error_handler(error_handler)
+    
     nav_buttons_regex = "^(👤 Profile|🛒 Buy Groups|🎬 Demo|📢 Main Channel|💬 Contact Admin|💰 Deposit to Wallet)$"
 
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
@@ -50,8 +51,6 @@ def main():
     app.add_handler(MessageHandler(filters.Regex("^📢 Main Channel$"), handle_main_channel))
     app.add_handler(MessageHandler(filters.Regex("^💬 Contact Admin$"), handle_support))
     app.add_handler(MessageHandler(filters.Regex("^🎬 Demo$"), handle_demo))
-    
-    # Global Demo Selector Callback
     app.add_handler(CallbackQueryHandler(demo_select_callback, pattern="^demo_sel_"))
 
     app.add_handler(CallbackQueryHandler(admin_buy_action, pattern="^buy_(app|rej)_"))
@@ -66,12 +65,17 @@ def main():
                 CallbackQueryHandler(buy_process_method, pattern="^buy_meth_"),
                 CallbackQueryHandler(buy_crypto_coin_selected, pattern="^buy_crypt_")
             ],
+            BUY_RECEIVING_GC_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), buy_receive_gc_code)],
             BUY_CONFIRM_PAYMENT: [CallbackQueryHandler(buy_ask_proof, pattern="^buy_i_paid$")],
-            BUY_GC_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), buy_receive_proof)],
-            BUY_SCREENSHOT: [MessageHandler((filters.PHOTO | filters.TEXT) & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), buy_receive_proof)]
+            BUY_SCREENSHOT: [MessageHandler(filters.PHOTO & ~filters.COMMAND, buy_receive_proof)]
         },
-        fallbacks=[CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$"), MessageHandler(filters.Regex(nav_buttons_regex), cancel_deposit)],
-        per_message=False
+        fallbacks=[
+            CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$"), 
+            MessageHandler(filters.Regex(nav_buttons_regex), cancel_deposit),
+            CallbackQueryHandler(start_deposit, pattern="^start_deposit_flow$")
+        ],
+        per_message=False,
+        allow_reentry=True
     )
     app.add_handler(buy_handler)
 
@@ -86,11 +90,18 @@ def main():
             TYPING_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), receive_amount)],
             CHOOSING_METHOD: [CallbackQueryHandler(choose_method, pattern="^dep_meth_")],
             CHOOSING_CRYPTO: [CallbackQueryHandler(choose_crypto_coin, pattern="^dep_crypt_")],
+            RECEIVING_GC_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), receive_gc_code)],
             CONFIRM_PAYMENT: [CallbackQueryHandler(ask_for_proof, pattern="^dep_i_paid$")],
-            UPLOADING_SCREENSHOT: [MessageHandler((filters.PHOTO | filters.TEXT) & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), receive_screenshot)]
+            UPLOADING_SCREENSHOT: [MessageHandler(filters.PHOTO & ~filters.COMMAND, receive_screenshot)]
         },
-        fallbacks=[CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$"), MessageHandler(filters.Regex(nav_buttons_regex), cancel_deposit)],
-        per_message=False
+        fallbacks=[
+            CommandHandler("cancel", cancel_deposit),
+            CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$"),
+            MessageHandler(filters.Regex(nav_buttons_regex), cancel_deposit),
+            CallbackQueryHandler(start_deposit, pattern="^start_deposit_flow$")
+        ],
+        per_message=False,
+        allow_reentry=True
     )
     app.add_handler(deposit_handler)
 
