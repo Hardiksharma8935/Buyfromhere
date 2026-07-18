@@ -144,6 +144,62 @@ async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data.clear()
     return END
 
+async def admin_deposit_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the Admin's Approve/Reject button clicks for deposits."""
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        action = query.data.split("_")[1]
+        tx_id = int(query.data.split("_")[2])
+        
+        async with AsyncSessionLocal() as session:
+            tx = await session.get(Transaction, tx_id)
+            if not tx or tx.status != 'Pending':
+                await query.edit_message_caption(caption=query.message.caption + "\n\n⚠️ STATUS: ALREADY PROCESSED")
+                return
+
+            if action == "approve":
+                tx.status = "Approved"
+                user = await session.execute(select(User).where(User.telegram_id == tx.user_id))
+                db_user = user.scalar_one_or_none()
+                if db_user:
+                    if tx.currency == "INR":
+                        db_user.balance_inr += tx.amount
+                    else:
+                        db_user.balance_usd += tx.amount
+                await session.commit()
+                
+                try:
+                    await context.bot.send_message(chat_id=tx.user_id, text=f"✅ **Deposit Approved!**\n{tx.amount} {tx.currency} has been added to your wallet.", parse_mode="Markdown")
+                except Exception:
+                    pass
+                
+                if query.message.photo:
+                    await query.edit_message_caption(caption=query.message.caption + "\n\n✅ STATUS: APPROVED & CREDITED")
+                else:
+                    await query.edit_message_text(text=query.message.text + "\n\n✅ STATUS: APPROVED & CREDITED")
+                    
+            else:
+                tx.status = "Rejected"
+                await session.commit()
+                try:
+                    await context.bot.send_message(chat_id=tx.user_id, text="❌ **Deposit Rejected.**\nYour payment could not be verified.", parse_mode="Markdown")
+                except Exception:
+                    pass
+                
+                if query.message.photo:
+                    await query.edit_message_caption(caption=query.message.caption + "\n\n❌ STATUS: REJECTED")
+                else:
+                    await query.edit_message_text(text=query.message.text + "\n\n❌ STATUS: REJECTED")
+                
+    except Exception as e:
+        logger.error(f"Admin Deposit Error: {e}")
+        if query.message.photo:
+            await query.edit_message_caption(caption=query.message.caption + "\n\n⚠️ PROCESSING ERROR")
+        else:
+            await query.edit_message_text(text=query.message.text + "\n\n⚠️ PROCESSING ERROR")
+
 async def cancel_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     text = "🚫 **Action Cancelled**"
