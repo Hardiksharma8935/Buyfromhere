@@ -13,7 +13,21 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     referred_by = Column(BigInteger, nullable=True)
     referral_count = Column(Integer, default=0)
+    referral_earnings = Column(Float, default=0.0)
+    total_purchases = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class Group(Base):
+    __tablename__ = 'groups'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    price_inr = Column(Float, nullable=False)
+    price_usd = Column(Float, nullable=False)
+    purchase_link = Column(String, nullable=False)
+    demo_link = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
 
 class Transaction(Base):
     __tablename__ = 'transactions'
