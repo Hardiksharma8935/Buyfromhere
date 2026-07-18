@@ -8,7 +8,7 @@ from src.handlers.start import start_command, verify_captcha
 from src.handlers.profile import handle_profile, handle_main_channel, handle_support
 from src.handlers.payment import (
     start_deposit, choose_currency, receive_amount, choose_method, 
-    choose_crypto_coin, receive_screenshot, cancel_deposit
+    choose_crypto_coin, receive_screenshot, cancel_deposit, admin_deposit_action
 )
 from src.handlers.buy import (
     handle_demo, start_buy_groups, buy_choose_currency, buy_choose_method,
@@ -23,14 +23,25 @@ from src.utils.states import *
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Global Error Handler to prevent application crashes."""
+    logger.error("Exception while handling an update:", exc_info=context.error)
+    if isinstance(update, Update) and update.effective_message:
+        try:
+            await update.effective_message.reply_text("⚠️ An unexpected error occurred. Our team has been notified.")
+        except Exception:
+            pass
+
 async def post_init(application: Application):
     await init_db()
-    logger.info("Bot started successfully.")
+    logger.info("Bot and Database Initialization Complete.")
 
 def main():
     app = Application.builder().token(settings.bot_token.get_secret_value()).post_init(post_init).build()
+    
+    app.add_error_handler(error_handler)
 
-    # Admin FSM
+    # Admin Settings FSM
     admin_handler = ConversationHandler(
         entry_points=[CommandHandler("admin", start_admin)],
         states={
@@ -53,16 +64,19 @@ def main():
     )
     app.add_handler(admin_handler)
 
-    # Core Navigation 
+    # Base Navigation Handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CallbackQueryHandler(verify_captcha, pattern="^captcha_"))
     app.add_handler(MessageHandler(filters.Regex("^👤 Profile$"), handle_profile))
     app.add_handler(MessageHandler(filters.Regex("^📢 Main Channel$"), handle_main_channel))
     app.add_handler(MessageHandler(filters.Regex("^💬 Contact Admin$"), handle_support))
     app.add_handler(MessageHandler(filters.Regex("^🎬 Demo$"), handle_demo))
+    
+    # Admin Approval Handlers (Fixed Regex to ensure execution)
     app.add_handler(CallbackQueryHandler(admin_buy_action, pattern="^buy_(app|rej)_"))
+    app.add_handler(CallbackQueryHandler(admin_deposit_action, pattern="^admin_(approve|reject)_"))
 
-    # Buy Groups FSM Flow
+    # Buy Groups FSM
     buy_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^🛒 Buy Groups$"), start_buy_groups)],
         states={
@@ -85,7 +99,7 @@ def main():
     )
     app.add_handler(buy_handler)
 
-    # Deposit FSM Flow
+    # Deposit FSM
     deposit_handler = ConversationHandler(
         entry_points=[
             CommandHandler("deposit", start_deposit),
