@@ -73,15 +73,36 @@ async def verify_captcha(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await query.edit_message_text("❌ Incorrect. Please use /start to try again.")
 
+from src.utils.keyboards import PremiumUI
+
+# ... (keep your captcha logic intact) ...
+
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, edit_message=False):
-    keyboard = [
-        [InlineKeyboardButton("💰 Deposit Funds", callback_data="menu_deposit")],
-        [InlineKeyboardButton("🛍️ Purchase", callback_data="menu_purchase"),
-         InlineKeyboardButton("👤 Profile", callback_data="menu_profile")],
-        [InlineKeyboardButton("👥 Referral", callback_data="menu_referral"),
-         InlineKeyboardButton("🎧 Support", url="https://t.me/your_support")]
-    ]
+    user = update.effective_user
     
+    # In a real scenario, fetch these from your DB. Using placeholders for the UI template.
+    balance_inr = 0.00
+    balance_usd = 0.00
+    
+    text = (
+        "❖ 𝗭𝗲𝗻𝗶𝘁𝗵 𝗡𝗼𝘃𝗮 𝗣𝗮𝘆\n"
+        "──────────────────────\n"
+        f"Welcome back, **{user.first_name}**!\n\n"
+        f"🔹 **𝗔𝘃𝗮𝗶𝗹𝗮𝗯𝗹ｅ 𝗕𝗮𝗹𝗮𝗻𝗰𝗲:** ₹{balance_inr} | ${balance_usd}\n"
+        f"🔹 **𝗨𝘀𝗲𝗿 𝗜𝗗:** `{user.id}`\n\n"
+        "Select an action from the dashboard below:"
+    )
+    
+    reply_markup = PremiumUI.main_menu()
+    
+    if edit_message and update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+    else:
+        if update.message:
+            await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+        elif update.callback_query:
+            await update.callback_query.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+            
     text = "👋 **Welcome to the Payment Bot!**\n\nSelect an option below to get started:"
     
     if edit_message and update.callback_query:
