@@ -1,25 +1,31 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from src.config import settings
 
 class PremiumUI:
     @staticmethod
     def main_menu() -> ReplyKeyboardMarkup:
         keyboard = [
-            [KeyboardButton("💰 Deposit"), KeyboardButton("🛒 Purchase")],
-            [KeyboardButton("👤 Profile"), KeyboardButton("👛 Wallet")],
-            [KeyboardButton("🎁 Referral"), KeyboardButton("📜 History")],
-            [KeyboardButton("📢 Channel"), KeyboardButton("🎧 Support")]
+            [KeyboardButton("🛒 Buy Groups"), KeyboardButton("👤 Profile")],
+            [KeyboardButton("🎬 Demo"), KeyboardButton("📢 Main Channel")],
+            [KeyboardButton("💬 Contact Admin")]
         ]
-        # Changed 'persistent' to 'is_persistent'
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, is_persistent=True)
-
-    @staticmethod
-    def back_button(callback_data: str = "main_menu") -> list:
-        return [InlineKeyboardButton("🔙 Back", callback_data=callback_data)]
 
     @staticmethod
     def cancel_inline() -> list:
         return [InlineKeyboardButton("❌ Cancel", callback_data="cancel_action")]
 
+    @staticmethod
+    def deposit_to_wallet() -> InlineKeyboardMarkup:
+        keyboard = [[InlineKeyboardButton("💰 Deposit to Wallet", callback_data="start_deposit_flow")]]
+        return InlineKeyboardMarkup(keyboard)
+
+    @staticmethod
+    def link_button(text: str, url: str) -> InlineKeyboardMarkup:
+        keyboard = [[InlineKeyboardButton(text, url=url)]]
+        return InlineKeyboardMarkup(keyboard)
+
+    # --- Deposit Flow Keyboards ---
     @staticmethod
     def currency_selection() -> InlineKeyboardMarkup:
         keyboard = [
@@ -46,6 +52,26 @@ class PremiumUI:
              InlineKeyboardButton("BTC", callback_data="crypto_BTC")],
             [InlineKeyboardButton("ETH", callback_data="crypto_ETH"),
              InlineKeyboardButton("SOL", callback_data="crypto_SOL")],
+            PremiumUI.cancel_inline()
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
+    # --- Buy Flow Keyboards ---
+    @staticmethod
+    def buy_currency_selection(group_id: int) -> InlineKeyboardMarkup:
+        keyboard = [
+            [InlineKeyboardButton("🇮🇳 Pay in INR", callback_data=f"buy_curr_INR_{group_id}"),
+             InlineKeyboardButton("🇺🇸 Pay in USD", callback_data=f"buy_curr_USD_{group_id}")],
+            PremiumUI.cancel_inline()
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
+    @staticmethod
+    def buy_payment_methods(group_id: int) -> InlineKeyboardMarkup:
+        keyboard = [
+            [InlineKeyboardButton("🪙 Crypto", callback_data=f"buy_meth_Crypto_{group_id}")],
+            [InlineKeyboardButton("🛍️ Amazon Gift Card", callback_data=f"buy_meth_Amazon_{group_id}")],
+            [InlineKeyboardButton("⭐ Telegram Stars", callback_data=f"buy_meth_Stars_{group_id}")],
             PremiumUI.cancel_inline()
         ]
         return InlineKeyboardMarkup(keyboard)
