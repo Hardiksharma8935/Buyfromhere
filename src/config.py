@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     owner_username: str
     database_url: str
     usd_to_inr_rate: float = 85.0
-    main_channel_link: str = "https://t.me/telegram"
+    main_channel_link: str = "https://t.me/NovaGenesisDev"
 
     # Crypto Wallets
     usdt_address: str = "Not Configured"
