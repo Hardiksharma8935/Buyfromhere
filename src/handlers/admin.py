@@ -1,5 +1,5 @@
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, ConversationHandler
 from src.database.core import AsyncSessionLocal
 from src.database.models import Group, DemoGroup, Setting
 from src.utils.keyboards import PremiumUI
@@ -49,7 +49,6 @@ async def admin_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Send the **Name** of the Demo Group:")
         return ADMIN_D_NAME
 
-# --- SETTINGS LOGIC ---
 async def admin_receive_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     key = context.user_data.get('setting_key')
     value = update.message.text
@@ -63,7 +62,6 @@ async def admin_receive_setting(update: Update, context: ContextTypes.DEFAULT_TY
     await update.message.reply_text(f"✅ Setting `{key}` updated to:\n{value}", parse_mode="Markdown")
     return END
 
-# --- ADD GROUP LOGIC ---
 async def admin_g_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['g_name'] = update.message.text
     await update.message.reply_text("Send the **Description**:")
@@ -95,14 +93,14 @@ async def admin_g_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.add(Group(
             name=context.user_data['g_name'], description=context.user_data['g_desc'],
             price_inr=context.user_data['g_inr'], price_usd=context.user_data['g_usd'],
-            telegram_group_id=context.user_data['g_id'], invite_link=update.message.text
+            telegram_group_id=context.user_data['g_id'], invite_link=update.message.text,
+            purchase_link="", demo_link="" # Overriding NOT NULL constraints from old DB
         ))
         await session.commit()
     await update.message.reply_text("✅ Group added successfully!")
     context.user_data.clear()
     return END
 
-# --- ADD DEMO LOGIC ---
 async def admin_d_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['d_name'] = update.message.text
     await update.message.reply_text("Send the **Demo Link** (https://t.me/...):")
@@ -115,3 +113,4 @@ async def admin_d_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Demo added successfully!")
     context.user_data.clear()
     return END
+    
