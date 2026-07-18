@@ -48,6 +48,7 @@ async def handle_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ An error occurred loading your profile.")
 
 async def handle_main_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Fixed: Reads directly from verified config default
     text = "📢 Click the button below to join our official updates channel."
     await update.message.reply_text(text, reply_markup=PremiumUI.link_button("Join Channel", settings.main_channel_link))
 
