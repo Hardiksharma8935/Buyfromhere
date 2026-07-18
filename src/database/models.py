@@ -23,8 +23,11 @@ class Group(Base):
     description = Column(String, nullable=True)
     price_inr = Column(Float, nullable=False)
     price_usd = Column(Float, nullable=False)
-    telegram_group_id = Column(BigInteger, nullable=True) # Added dynamically by core.py
-    invite_link = Column(String, nullable=True)           # Added dynamically by core.py
+    telegram_group_id = Column(BigInteger, nullable=True)
+    invite_link = Column(String, nullable=True)
+    # Added back to prevent NotNullViolationError from old DB schema
+    purchase_link = Column(String, nullable=True) 
+    demo_link = Column(String, nullable=True)     
     is_active = Column(Boolean, default=True, index=True)
 
 class DemoGroup(Base):
