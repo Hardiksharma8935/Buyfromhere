@@ -1,5 +1,6 @@
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes, ConversationHandler
+from datetime import datetime
 from src.utils.states import *
 from src.config import settings
 from src.database.models import Transaction
@@ -68,6 +69,7 @@ async def choose_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
         currency = context.user_data['deposit_currency']
         amount = context.user_data['deposit_amount']
         
+        # Internally convert to INR if USD was chosen
         if currency == "USD":
             amount = amount * settings.usd_to_inr_rate
             context.user_data['deposit_amount'] = amount
@@ -125,8 +127,50 @@ async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("⚠️ **Format not supported.** Please upload a photo/screenshot.")
         return UPLOADING_SCREENSHOT
 
-    # ... (Keep your database and admin forwarding logic exactly the same here) ...
+    photo_file_id = update.message.photo[-1].file_id
+    user = update.message.from_user
+    amount = context.user_data['deposit_amount']
+    currency = context.user_data['deposit_currency']
+    method = context.user_data['deposit_method']
+    coin = context.user_data.get('deposit_crypto_coin', '')
+
+    # Save to Database
+    async with AsyncSessionLocal() as session:
+        new_tx = Transaction(
+            user_id=user.id,
+            amount=amount,
+            currency=currency,
+            method=method,
+            crypto_coin=coin,
+            screenshot_id=photo_file_id,
+            status="Pending"
+        )
+        session.add(new_tx)
+        await session.commit()
+        await session.refresh(new_tx)
+        tx_id = new_tx.id
+
+    # Send to Admin
+    admin_text = (f"🚨 **New Deposit Request**\n\n"
+                  f"👤 User: {user.first_name} (@{user.username})\n"
+                  f"🆔 ID: `{user.id}`\n"
+                  f"💵 Amount: {amount} {currency}\n"
+                  f"💳 Method: {method} {coin}\n"
+                  f"🕒 Time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
+                  
+    keyboard = [
+        [InlineKeyboardButton("✅ Approve", callback_data=f"admin_approve_{tx_id}"),
+         InlineKeyboardButton("❌ Reject", callback_data=f"admin_reject_{tx_id}")]
+    ]
     
+    await context.bot.send_photo(
+        chat_id=settings.owner_id,
+        photo=photo_file_id,
+        caption=admin_text,
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
     text = (
         "✅ **𝗣𝗮𝘆𝗺𝗲𝗻𝘁 𝗣𝗿𝗼𝗼𝗳 𝗦𝘂𝗯𝗺𝗶𝘁𝘁𝗲𝗱**\n"
         "──────────────────────\n"
@@ -135,5 +179,19 @@ async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
     await update.message.reply_text(text, reply_markup=PremiumUI.main_menu(), parse_mode="Markdown")
     context.user_data.clear()
+    return END
+
+async def cancel_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
+    text = (
+        "🚫 **Transaction Cancelled**\n"
+        "──────────────────────\n"
+        "Your deposit process has been safely terminated."
+    )
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=PremiumUI.main_menu(), parse_mode="Markdown")
+    else:
+        await update.message.reply_text(text, reply_markup=PremiumUI.main_menu(), parse_mode="Markdown")
     return END
     
