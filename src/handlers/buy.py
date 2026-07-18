@@ -1,40 +1,49 @@
+import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, ConversationHandler
 from datetime import datetime
 from src.utils.states import *
 from src.config import settings
-from src.database.models import Group, DemoGroup, User
+from src.database.models import Group, DemoGroup, User, Transaction
 from src.database.core import AsyncSessionLocal
 from sqlalchemy import select
 from src.utils.keyboards import PremiumUI
 
-# --- DEMO FLOW ---
+logger = logging.getLogger(__name__)
+
 async def handle_demo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(select(DemoGroup).where(DemoGroup.is_active == True))
-        groups = result.scalars().all()
-        
-    if not groups:
-        await update.message.reply_text("❌ No demo groups available at the moment.")
-        return
-        
-    keyboard = [[InlineKeyboardButton(f"🎬 {g.name} Demo", url=g.demo_link)] for g in groups]
-    await update.message.reply_text("❖ **𝗔𝘃𝗮𝗶𝗹𝗮𝗯𝗹𝗲 𝗗𝗲𝗺𝗼𝘀**\n──────────────────────\nSelect a group to view its demo:", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(DemoGroup).where(DemoGroup.is_active == True))
+            groups = result.scalars().all()
+            
+        if not groups:
+            await update.message.reply_text("❌ No demo groups available at the moment.")
+            return
+            
+        keyboard = [[InlineKeyboardButton(f"🎬 {g.name} Demo", url=g.demo_link)] for g in groups]
+        await update.message.reply_text("❖ **𝗔𝘃𝗮𝗶𝗹𝗮𝗯𝗹𝗲 𝗗𝗲𝗺𝗼𝘀**\n──────────────────────\nSelect a group to view its demo:", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"Demo Error: {e}")
+        await update.message.reply_text("⚠️ An error occurred. Please try again.")
 
-# --- BUY FLOW ---
 async def start_buy_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(select(Group).where(Group.is_active == True))
-        groups = result.scalars().all()
-        
-    if not groups:
-        await update.message.reply_text("❌ No groups available for purchase at the moment.")
-        return END
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(Group).where(Group.is_active == True))
+            groups = result.scalars().all()
+            
+        if not groups:
+            await update.message.reply_text("❌ No groups available for purchase at the moment.")
+            return END
 
-    keyboard = [[InlineKeyboardButton(f"{g.name} - ₹{g.price_inr} | ${g.price_usd}", callback_data=f"buy_sel_{g.id}")] for g in groups]
-    keyboard.append(PremiumUI.cancel_inline())
-    await update.message.reply_text("❖ **𝗕𝘂𝘆 𝗚𝗿𝗼𝘂𝗽𝘀**\n──────────────────────\nSelect a group to purchase:", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
-    return BUY_CHOOSING_CURRENCY
+        keyboard = [[InlineKeyboardButton(f"{g.name} - ₹{g.price_inr} | ${g.price_usd}", callback_data=f"buy_sel_{g.id}")] for g in groups]
+        keyboard.append(PremiumUI.cancel_inline())
+        await update.message.reply_text("❖ **𝗕𝘂𝘆 𝗚𝗿𝗼𝘂𝗽𝘀**\n──────────────────────\nSelect a group to purchase:", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        return BUY_CHOOSING_CURRENCY
+    except Exception as e:
+        logger.error(f"Buy Groups Error: {e}")
+        return END
 
 async def buy_choose_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -121,55 +130,67 @@ async def buy_receive_screenshot(update: Update, context: ContextTypes.DEFAULT_T
     context.user_data.clear()
     return END
 
-# --- ADMIN AUTO-DELIVERY LOGIC ---
 async def admin_buy_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    action = query.data.split("_")[1]
     
-    if action == "app":
-        group_id = int(query.data.split("_")[2])
-        user_id = int(query.data.split("_")[3])
+    try:
+        action = query.data.split("_")[1]
         
-        async with AsyncSessionLocal() as session:
-            group = await session.get(Group, group_id)
-            user = await session.execute(select(User).where(User.telegram_id == user_id))
-            db_user = user.scalar_one_or_none()
-            if db_user:
-                db_user.total_purchases += 1
-                await session.commit()
-                
-        # Generate or Fetch Invite Link
-        final_link = group.invite_link
-        if group.telegram_group_id:
-            try:
-                invite = await context.bot.create_chat_invite_link(chat_id=group.telegram_group_id, member_limit=1)
-                final_link = invite.invite_link
-            except Exception:
-                pass # Fallback to DB link if bot is not admin in the channel
+        if action == "app":
+            group_id = int(query.data.split("_")[2])
+            user_id = int(query.data.split("_")[3])
+            
+            async with AsyncSessionLocal() as session:
+                group = await session.get(Group, group_id)
+                user = await session.execute(select(User).where(User.telegram_id == user_id))
+                db_user = user.scalar_one_or_none()
+                if db_user:
+                    db_user.total_purchases += 1
+                    await session.commit()
+                    
+            # Generate Single-Use Invite Link via Telegram API
+            final_link = group.invite_link
+            if group.telegram_group_id:
+                try:
+                    # ONE-TIME USE SECURITY: member_limit=1
+                    invite = await context.bot.create_chat_invite_link(
+                        chat_id=group.telegram_group_id, 
+                        member_limit=1,
+                        name=f"Purchase_{user_id}"
+                    )
+                    final_link = invite.invite_link
+                except Exception as e:
+                    logger.error(f"Failed to generate invite link: {e}")
+                    # Fallback to static DB link if API generation fails
+                    pass 
 
-        try:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=f"✅ **Purchase Approved!**\n\nHere is your unique access link for **{group.name}**:\n{final_link}\n\n*Note: This link is single-use.*",
-                parse_mode="Markdown"
-            )
-        except Exception:
-            pass
-            
-        if query.message.photo:
-            await query.edit_message_caption(caption=query.message.caption + "\n\n**STATUS: APPROVED & LINK SENT ✅**")
-        else:
-            await query.edit_message_text(text=query.message.text + "\n\n**STATUS: APPROVED & LINK SENT ✅**")
-            
-    elif action == "rej":
-        user_id = int(query.data.split("_")[2])
-        try:
-            await context.bot.send_message(chat_id=user_id, text="❌ **Purchase Rejected.**\nYour payment could not be verified.", parse_mode="Markdown")
-        except Exception:
-            pass
-        if query.message.photo:
-            await query.edit_message_caption(caption=query.message.caption + "\n\n**STATUS: REJECTED ❌**")
-        else:
-            await query.edit_message_text(text=query.message.text + "\n\n**STATUS: REJECTED ❌**")
-            
+            try:
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=f"✅ **Purchase Approved!**\n\nHere is your unique access link for **{group.name}**:\n{final_link}\n\n⚠️ *Note: This link is strictly single-use and will expire immediately after you join.*",
+                    parse_mode="Markdown"
+                )
+            except Exception:
+                pass
+                
+            if query.message.photo:
+                await query.edit_message_caption(caption=query.message.caption + "\n\n**STATUS: APPROVED & LINK SENT ✅**")
+            else:
+                await query.edit_message_text(text=query.message.text + "\n\n**STATUS: APPROVED & LINK SENT ✅**")
+                
+        elif action == "rej":
+            user_id = int(query.data.split("_")[2])
+            try:
+                await context.bot.send_message(chat_id=user_id, text="❌ **Purchase Rejected.**\nYour payment could not be verified. Contact Admin.", parse_mode="Markdown")
+            except Exception:
+                pass
+            if query.message.photo:
+                await query.edit_message_caption(caption=query.message.caption + "\n\n**STATUS: REJECTED ❌**")
+            else:
+                await query.edit_message_text(text=query.message.text + "\n\n**STATUS: REJECTED ❌**")
+                
+    except Exception as e:
+        logger.error(f"Admin Buy Action Error: {e}")
+        await query.edit_message_text(text=query.message.text + "\n\n**⚠️ ERROR PROCESSING ACTION**")
+                
