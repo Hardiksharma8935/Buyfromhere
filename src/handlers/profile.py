@@ -2,7 +2,7 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 from src.database.core import AsyncSessionLocal
-from src.database.models import User, Setting
+from src.database.models import User
 from sqlalchemy import select
 from src.utils.keyboards import PremiumUI
 from src.config import settings
@@ -45,16 +45,11 @@ async def handle_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(text, reply_markup=PremiumUI.deposit_to_wallet(), parse_mode="Markdown")
     except Exception as e:
         logger.error(f"Profile Error: {e}")
-        await update.message.reply_text("An error occurred loading your profile. Please try again.")
+        await update.message.reply_text("⚠️ An error occurred loading your profile.")
 
 async def handle_main_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(select(Setting).where(Setting.key == "MAIN_CHANNEL_LINK"))
-        setting = result.scalar_one_or_none()
-        channel_link = setting.value if setting else "https://t.me/telegram"
-        
     text = "📢 Click the button below to join our official updates channel."
-    await update.message.reply_text(text, reply_markup=PremiumUI.link_button("Join Channel", channel_link))
+    await update.message.reply_text(text, reply_markup=PremiumUI.link_button("Join Channel", settings.main_channel_link))
 
 async def handle_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admin_url = f"https://t.me/{settings.owner_username.replace('@', '')}"
