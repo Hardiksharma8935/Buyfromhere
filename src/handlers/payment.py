@@ -1,12 +1,15 @@
+import logging
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler
 from datetime import datetime
 from src.utils.states import *
 from src.config import settings
-from src.database.models import Transaction, Setting
+from src.database.models import Transaction, Setting, User
 from src.database.core import AsyncSessionLocal
 from sqlalchemy import select
 from src.utils.keyboards import PremiumUI
+
+logger = logging.getLogger(__name__)
 
 async def get_setting(session, key: str, default: str = "") -> str:
     result = await session.execute(select(Setting).where(Setting.key == key))
@@ -15,11 +18,15 @@ async def get_setting(session, key: str, default: str = "") -> str:
 
 async def start_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = "❖ **𝗗𝗲𝗽𝗼𝘀𝗶𝘁 𝗙𝘂𝗻𝗱𝘀**\n──────────────────────\nPlease select your preferred currency."
-    if update.message:
-        await update.message.reply_text(text, reply_markup=PremiumUI.currency_selection(), parse_mode="Markdown")
-    elif update.callback_query:
-        await update.callback_query.edit_message_text(text, reply_markup=PremiumUI.currency_selection(), parse_mode="Markdown")
-    return CHOOSING_CURRENCY
+    try:
+        if update.message:
+            await update.message.reply_text(text, reply_markup=PremiumUI.currency_selection(), parse_mode="Markdown")
+        elif update.callback_query:
+            await update.callback_query.edit_message_text(text, reply_markup=PremiumUI.currency_selection(), parse_mode="Markdown")
+        return CHOOSING_CURRENCY
+    except Exception as e:
+        logger.error(f"Deposit Error: {e}")
+        return END
 
 async def choose_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -36,7 +43,7 @@ async def receive_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
         amount = float(update.message.text)
         if amount <= 0: raise ValueError
     except ValueError:
-        await update.message.reply_text("⚠️ **Invalid amount.** Please enter a valid number.")
+        await update.message.reply_text("⚠️ **Invalid amount.** Please enter a valid positive number.")
         return TYPING_AMOUNT
 
     context.user_data['deposit_amount'] = amount
@@ -110,7 +117,7 @@ async def choose_crypto_coin(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.photo:
-        await update.message.reply_text("⚠️ Please upload a photo/screenshot.")
+        await update.message.reply_text("⚠️ Please upload a valid photo/screenshot.")
         return UPLOADING_SCREENSHOT
 
     photo_file_id = update.message.photo[-1].file_id
@@ -127,7 +134,7 @@ async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await session.refresh(new_tx)
         tx_id = new_tx.id
 
-    admin_text = (f"🚨 **New Deposit Request**\n\n👤 User: {user.first_name} (@{user.username})\n🆔 ID: `{user.id}`\n"
+    admin_text = (f"🚨 **New Wallet Deposit**\n\n👤 User: {user.first_name} (@{user.username})\n🆔 ID: `{user.id}`\n"
                   f"💵 Amount: {amount} {currency}\n💳 Method: {method} {coin}\n🕒 Time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
     keyboard = [[InlineKeyboardButton("✅ Approve", callback_data=f"admin_approve_{tx_id}"), InlineKeyboardButton("❌ Reject", callback_data=f"admin_reject_{tx_id}")]]
     
@@ -135,6 +142,54 @@ async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text("✅ **Payment Proof Submitted.** Our team will verify it shortly.", parse_mode="Markdown", reply_markup=PremiumUI.main_menu())
     context.user_data.clear()
     return END
+
+async def admin_deposit_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        action = query.data.split("_")[1]
+        tx_id = int(query.data.split("_")[2])
+        
+        async with AsyncSessionLocal() as session:
+            tx = await session.get(Transaction, tx_id)
+            if not tx or tx.status != 'Pending':
+                await query.edit_message_caption(caption=query.message.caption + "\n\n⚠️ STATUS: ALREADY PROCESSED")
+                return
+
+            if action == "approve":
+                tx.status = "Approved"
+                user = await session.execute(select(User).where(User.telegram_id == tx.user_id))
+                db_user = user.scalar_one_or_none()
+                if db_user:
+                    if tx.currency == "INR":
+                        db_user.balance_inr += tx.amount
+                    else:
+                        db_user.balance_usd += tx.amount
+                
+                await session.commit()
+                
+                try:
+                    await context.bot.send_message(chat_id=tx.user_id, text=f"✅ **Deposit Approved!**\n{tx.amount} {tx.currency} has been added to your wallet.", parse_mode="Markdown")
+                except Exception:
+                    pass
+                    
+                await query.edit_message_caption(caption=query.message.caption + "\n\n✅ STATUS: APPROVED & CREDITED")
+                
+            else:
+                tx.status = "Rejected"
+                await session.commit()
+                
+                try:
+                    await context.bot.send_message(chat_id=tx.user_id, text="❌ **Deposit Rejected.**\nYour payment could not be verified.", parse_mode="Markdown")
+                except Exception:
+                    pass
+                
+                await query.edit_message_caption(caption=query.message.caption + "\n\n❌ STATUS: REJECTED")
+                
+    except Exception as e:
+        logger.error(f"Admin Deposit Error: {e}")
+        await query.edit_message_caption(caption=query.message.caption + "\n\n⚠️ PROCESSING ERROR")
 
 async def cancel_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -144,3 +199,4 @@ async def cancel_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(text, parse_mode="Markdown", reply_markup=PremiumUI.main_menu())
     return END
+    
