@@ -26,7 +26,6 @@ async def post_init(application: Application):
 def main():
     app = Application.builder().token(settings.bot_token.get_secret_value()).post_init(post_init).build()
 
-    # Core Navigation (Triggers from ReplyKeyboardMarkup)
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CallbackQueryHandler(verify_captcha, pattern="^captcha_"))
     
@@ -35,10 +34,8 @@ def main():
     app.add_handler(MessageHandler(filters.Regex("^💬 Contact Admin$"), handle_support))
     app.add_handler(MessageHandler(filters.Regex("^🎬 Demo$"), handle_demo))
     
-    # Admin Purchase Approvals
     app.add_handler(CallbackQueryHandler(admin_buy_action, pattern="^buy_(app|rej)_"))
 
-    # Buy Groups FSM Flow
     buy_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^🛒 Buy Groups$"), start_buy_groups)],
         states={
@@ -60,10 +57,10 @@ def main():
         per_message=False
     )
 
-    # Deposit FSM Flow (Accessible via Profile inline button)
     deposit_handler = ConversationHandler(
         entry_points=[
             CommandHandler("deposit", start_deposit),
+            MessageHandler(filters.Regex("^💰 Deposit to Wallet$"), start_deposit), # Fixed Trigger
             CallbackQueryHandler(start_deposit, pattern="^start_deposit_flow$")
         ],
         states={
