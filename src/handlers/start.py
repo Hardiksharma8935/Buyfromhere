@@ -61,7 +61,6 @@ async def verify_captcha(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not db_user.is_verified:
                 db_user.is_verified = True
                 
-                # Referral Logic: Max 50, ₹5 reward
                 if db_user.referred_by:
                     stmt_ref = select(User).where(User.telegram_id == db_user.referred_by)
                     ref_result = await session.execute(stmt_ref)
@@ -79,7 +78,7 @@ async def verify_captcha(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 parse_mode="Markdown"
                             )
                         except Exception:
-                            pass # Suppress if referrer blocked the bot
+                            pass 
                             
             await session.commit()
             
@@ -94,4 +93,4 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, is_
         await update.message.reply_text(text, reply_markup=PremiumUI.main_menu(), parse_mode="Markdown")
     elif update.callback_query and is_new:
         await update.callback_query.message.reply_text(text, reply_markup=PremiumUI.main_menu(), parse_mode="Markdown")
-              
+        
