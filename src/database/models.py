@@ -1,6 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, BigInteger
-from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
+from datetime import datetime
 from src.database.core import Base
 
 class User(Base):
@@ -11,10 +10,10 @@ class User(Base):
     username = Column(String, nullable=True)
     balance_inr = Column(Float, default=0.0)
     balance_usd = Column(Float, default=0.0)
-    is_verified = Column(Boolean, default=False) # For CAPTCHA
+    is_verified = Column(Boolean, default=False)
     referred_by = Column(BigInteger, nullable=True)
     referral_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class Transaction(Base):
     __tablename__ = 'transactions'
@@ -22,15 +21,10 @@ class Transaction(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(BigInteger, ForeignKey('users.telegram_id'), nullable=False)
     amount = Column(Float, nullable=False)
-    currency = Column(String, nullable=False) # 'INR' or 'USD'
-    method = Column(String, nullable=False) # 'Amazon', 'Crypto', 'Stars'
-    crypto_coin = Column(String, nullable=True) # 'BTC', 'USDT', etc.
-    status = Column(String, default='Pending') # 'Pending', 'Approved', 'Rejected'
+    currency = Column(String, nullable=False)
+    method = Column(String, nullable=False)
+    crypto_coin = Column(String, nullable=True)
+    status = Column(String, default='Pending')
     screenshot_id = Column(String, nullable=True)
-    from datetime import datetime
-# ...
-    # Remove timezone.utc
-    from datetime import datetime, timezone
-# ...
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    created_at = Column(DateTime, default=datetime.utcnow)
     
