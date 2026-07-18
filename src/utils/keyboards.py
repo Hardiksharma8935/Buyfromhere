@@ -9,8 +9,9 @@ class PremiumUI:
             [KeyboardButton("🎁 Referral"), KeyboardButton("📜 History")],
             [KeyboardButton("📢 Channel"), KeyboardButton("🎧 Support")]
         ]
-                return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, is_persistent=True)
-        
+        # Changed 'persistent' to 'is_persistent'
+        return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, is_persistent=True)
+
     @staticmethod
     def back_button(callback_data: str = "main_menu") -> list:
         return [InlineKeyboardButton("🔙 Back", callback_data=callback_data)]
