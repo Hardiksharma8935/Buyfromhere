@@ -41,4 +41,10 @@ class Transaction(Base):
     status = Column(String, default='Pending')
     screenshot_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class Setting(Base):
+    __tablename__ = 'settings'
+    
+    key = Column(String, primary_key=True, index=True)
+    value = Column(String, nullable=False)
     
