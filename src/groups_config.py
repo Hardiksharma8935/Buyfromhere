@@ -1,20 +1,27 @@
 GROUPS = {
-    "g1": {
-        "name": "Premium Movies",
-        "description": "Daily updated premium 4K movies.",
-        "price": 299,
-        "usd_price": 4,
-        "stars": 150, 
-        "chat_id": -100123456789, # Make sure bot is Admin here
-        "demo": "https://t.me/demo_movies"
-    },
-    "g2": {
-        "name": "VIP Web Series",
-        "description": "All premium OTT web series.",
-        "price": 499,
-        "usd_price": 6,
-        "stars": 250,
-        "chat_id": -100987654321,
-        "demo": "https://t.me/demo_series"
-    }
+    "g1": {"name": "Stripchat", "price": 99, "usd_price": 3, "stars": 133, "chat_id": "-1004445000742", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADyh4AAmjCeUaIxOc4OANLJxYE"},
+    "g2": {"name": "Indian Students", "price": 99, "usd_price": 3, "stars": 133, "chat_id": "-1004458938934", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADiR4AAmjCeUastMuPKJmT_hYE"},
+    "g3": {"name": "Pure tamil", "price": 99, "usd_price": 3, "stars": 133, "chat_id": "-1003893753935", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADix4AAmjCeUaiYnw8VfpWHxYE"},
+    "g4": {"name": "Forced", "price": 199, "usd_price": 3, "stars": 133, "chat_id": "-1003997365417", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADjB4AAmjCeUZFY7dmTyGcVBYE"},
+    "g5": {"name": "self made ", "price": 99, "usd_price": 3, "stars": 133, "chat_id": "-1003589926855", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADjh4AAmjCeUY17uH7NGywPhYE"},
+    "g6": {"name": "hidden secret", "price": 99, "usd_price": 3, "stars": 133, "chat_id": "-1004407356883", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADlB4AAmjCeUYrdi34PirAWhYE"},
+    "g7": {"name": "bad parents", "price": 149, "usd_price": 3, "stars": 133, "chat_id": "-1003969174282", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADlR4AAmjCeUZGaDMBp5MGoBYE"},
+    "g8": {"name": "fingerings", "price": 99, "usd_price": 3, "stars": 133, "chat_id": "-1004435164752", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADmh4AAmjCeUb7rxcaimfZWxYE"},
+    "g9": {"name": "dickflash", "price": 99, "usd_price": 3, "stars": 133, "chat_id": "-1003870700155", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADoB4AAmjCeUZIwdgTLPeNlxYE"},
+    "g10": {"name": "car videos", "price": 49, "usd_price": 3, "stars": 133, "chat_id": "-1004351633034", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADox4AAmjCeUbkZylaMcGdpBYE"},
+    "g11": {"name": "ip cam cctv", "price": 99, "usd_price": 3, "stars": 133, "chat_id": "-1003739836678", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADpR4AAmjCeUbG-D-ej2NRmRYE"},
+    "g12": {"name": "only fans", "price": 99, "usd_price": 3, "stars": 133, "chat_id": "-1003960924467", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADqR4AAmjCeUYp7NSXggaRfBYE"},
+    "g13": {"name": "Indian cxp ", "price": 199, "usd_price": 5, "stars": 233, "chat_id": "-1003985171544", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQAD-wwAAhoLqUZbB0VsNbmtkhYE"},
+    "g14": {"name": "Arbic Stuffs", "price": 99, "usd_price": 3, "stars": 133, "chat_id": "-1004409206399", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADrR4AAmjCeUZrD1n7ZSUqFxYE"},
+    "g15": {"name": "mallu", "price": 99, "usd_price": 3, "stars": 133, "chat_id": "-1004320995574", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADUAwAAmjCgUbyd4xysXvrtxYE"},
+    "g16": {"name": "All In One ", "price": 499, "usd_price": 10, "stars": 833, "chat_id": "-1003599861740", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADmA0AAmjCgUYg1UY_ofR7vxYE"},
+    "g17": {"name": " mom son ", "price": 199, "usd_price": 3, "stars": 133, "chat_id": "-1003688683917", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQADfRQAAghnMUYQOCV4bNnbxBYE"},
+    "g18": {"name": " pakistani Cxp", "price": 199, "usd_price": 3, "stars": 133, "chat_id": "-1003928326633", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQAD8QkAAp4PiEZ7T8vtPnvP7BYE"},
+    "g19": {"name": " tamil cxp ", "price": 199, "usd_price": 3, "stars": 133, "chat_id": "-1004462050531", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQAD_wkAAp4PiEaDKqDxyG7DNxYE"},
+    "g20": {"name": " foreign cxp ", "price": 199, "usd_price": 5, "stars": 233, "chat_id": "-1004458448520", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQAD9QgAAhoLqUYNLwST4Tz1jxYE"},
+    "g21": {"name": " Gay cxp ", "price": 199, "usd_price": 5, "stars": 233, "chat_id": "-1004435458777", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQAD9QgAAhoLqUYNLwST4Tz1jxYE"},
+    "g22": {"name": " Spy ", "price": 199, "usd_price": 5, "stars": 233, "chat_id": "-1003864900874", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQAD9QgAAhoLqUYNLwST4Tz1jxYE"},
+    "g23": {"name": " Mallu cxp ", "price": 199, "usd_price": 5, "stars": 233, "chat_id": "-1003993043440", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQAD9QgAAhoLqUYNLwST4Tz1jxYE"},
+    "g24": {"name": " All Links In One ", "price": 799, "usd_price": 20, "stars": 933, "chat_id": "-1003599861740", "demo": "https://t.me/DemoNovazenithXbot?start=BQADAQAD9QgAAhoLqUYNLwST4Tz1jxYE"}
+
 }
