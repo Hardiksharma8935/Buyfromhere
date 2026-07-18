@@ -155,4 +155,91 @@ async def buy_receive_proof(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     return END
 
-# (Keep successful_payment_callback and admin_buy_action exactly as they are in your current working build)
+# --- TELEGRAM STARS PAYMENT HANDLERS ---
+async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.pre_checkout_query
+    if query.invoice_payload.startswith("buy_"):
+        await query.answer(ok=True)
+    else:
+        await query.answer(ok=False, error_message="Something went wrong.")
+
+async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    payment = update.message.successful_payment
+    payload = payment.invoice_payload
+    user = update.effective_user
+
+    if payload.startswith("buy_"):
+        parts = payload.split("_")
+        group_id = parts[1]
+        group = GROUPS[group_id]
+
+        async with AsyncSessionLocal() as session:
+            db_user = await session.get(User, user.id)
+            if db_user:
+                db_user.total_purchases += 1
+            
+            new_tx = Transaction(user_id=user.id, amount=payment.total_amount, currency=payment.currency, method="Stars", status="Approved")
+            session.add(new_tx)
+            await session.commit()
+
+        # Generate Invite Link Automatically
+        try:
+            invite = await context.bot.create_chat_invite_link(chat_id=group["chat_id"], member_limit=1, name=f"Stars_{user.id}")
+            final_link = invite.invite_link
+            await update.message.reply_text(
+                f"✅ **Payment Successful!**\n\nHere is your unique access link for **{group['name']}**:\n{final_link}\n\n⚠️ *Note: This link is strictly single-use and will expire immediately after you join.*",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger.error(f"Stars Invite Link Error: {e}")
+            await update.message.reply_text("✅ Payment successful, but we couldn't generate the invite link. Please contact Admin.")
+
+# --- ADMIN ACTION HANDLERS ---
+async def admin_buy_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        action = query.data.split("_")[1]
+        
+        if action == "app":
+            group_id = query.data.split("_")[2]
+            user_id = int(query.data.split("_")[3])
+            group = GROUPS[group_id]
+            
+            async with AsyncSessionLocal() as session:
+                user = await session.execute(select(User).where(User.telegram_id == user_id))
+                db_user = user.scalar_one_or_none()
+                if db_user:
+                    db_user.total_purchases += 1
+                    await session.commit()
+                    
+            try:
+                invite = await context.bot.create_chat_invite_link(chat_id=group["chat_id"], member_limit=1, name=f"Purchase_{user_id}")
+                final_link = invite.invite_link
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=f"✅ **Purchase Approved!**\n\nHere is your unique access link for **{group['name']}**:\n{final_link}\n\n⚠️ *Note: This link is strictly single-use and will expire immediately after you join.*",
+                    parse_mode="Markdown"
+                )
+            except Exception as e:
+                logger.error(f"Failed to generate invite link: {e}")
+                
+            if query.message.photo:
+                await query.edit_message_caption(caption=query.message.caption + "\n\n**STATUS: APPROVED & LINK SENT ✅**")
+            else:
+                await query.edit_message_text(text=query.message.text + "\n\n**STATUS: APPROVED & LINK SENT ✅**")
+                
+        elif action == "rej":
+            user_id = int(query.data.split("_")[2])
+            try:
+                await context.bot.send_message(chat_id=user_id, text="❌ **Purchase Rejected.**\nYour payment could not be verified. Contact Admin.", parse_mode="Markdown")
+            except Exception:
+                pass
+            if query.message.photo:
+                await query.edit_message_caption(caption=query.message.caption + "\n\n**STATUS: REJECTED ❌**")
+            else:
+                await query.edit_message_text(text=query.message.text + "\n\n**STATUS: REJECTED ❌**")
+                
+    except Exception as e:
+        logger.error(f"Admin Buy Action Error: {e}")
