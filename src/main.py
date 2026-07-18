@@ -1,6 +1,6 @@
 import logging
 from telegram import Update
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler, ContextTypes, PreCheckoutQueryHandler
 from src.config import settings
 from src.database.core import init_db
 
@@ -12,12 +12,10 @@ from src.handlers.payment import (
 )
 from src.handlers.buy import (
     handle_demo, start_buy_groups, buy_choose_currency, buy_choose_method,
-    buy_process_method, buy_receive_gc, buy_request_screenshot, buy_receive_screenshot, admin_buy_action
+    buy_process_method, buy_receive_gc, buy_request_screenshot, buy_receive_screenshot, admin_buy_action,
+    precheckout_callback, successful_payment_callback
 )
-from src.handlers.admin import (
-    start_admin, admin_router, admin_receive_setting, admin_g_name, admin_g_desc,
-    admin_g_inr, admin_g_usd, admin_g_id, admin_g_link, admin_d_name, admin_d_link
-)
+from src.handlers.admin import start_broadcast, receive_broadcast, add_balance, remove_balance
 from src.utils.states import *
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -39,33 +37,26 @@ def main():
     app = Application.builder().token(settings.bot_token.get_secret_value()).post_init(post_init).build()
     
     app.add_error_handler(error_handler)
-
-    # Keyboard buttons list for fallback matching
     nav_buttons_regex = "^(👤 Profile|🛒 Buy Groups|🎬 Demo|📢 Main Channel|💬 Contact Admin|💰 Deposit to Wallet)$"
 
-    # Admin Settings FSM
-    admin_handler = ConversationHandler(
-        entry_points=[CommandHandler("admin", start_admin)],
+    # Telegram Stars Payments Native Handlers
+    app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+
+    # Admin Broadcast FSM
+    broadcast_handler = ConversationHandler(
+        entry_points=[CommandHandler("broadcast", start_broadcast)],
         states={
-            ADMIN_MENU: [CallbackQueryHandler(admin_router, pattern="^admin_")],
-            ADMIN_SET_SETTING: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_receive_setting)],
-            ADMIN_G_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_g_name)],
-            ADMIN_G_DESC: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_g_desc)],
-            ADMIN_G_INR: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_g_inr)],
-            ADMIN_G_USD: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_g_usd)],
-            ADMIN_G_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_g_id)],
-            ADMIN_G_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_g_link)],
-            ADMIN_D_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_d_name)],
-            ADMIN_D_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_d_link)]
+            BROADCAST_WAITING: [MessageHandler(~filters.COMMAND, receive_broadcast)]
         },
-        fallbacks=[
-            CommandHandler("cancel", cancel_deposit),
-            CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$"),
-            MessageHandler(filters.Regex(nav_buttons_regex), cancel_deposit)
-        ],
+        fallbacks=[CommandHandler("cancel", cancel_deposit)],
         per_message=False
     )
-    app.add_handler(admin_handler)
+    app.add_handler(broadcast_handler)
+
+    # Admin Balance Commands
+    app.add_handler(CommandHandler("addbalance", add_balance))
+    app.add_handler(CommandHandler("removebalance", remove_balance))
 
     # Base Navigation Handlers
     app.add_handler(CommandHandler("start", start_command))
