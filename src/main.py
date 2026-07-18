@@ -8,11 +8,11 @@ from src.handlers.start import start_command, verify_captcha
 from src.handlers.profile import handle_profile, handle_main_channel, handle_support
 from src.handlers.payment import (
     start_deposit, choose_currency, receive_amount, choose_method, 
-    choose_crypto_coin, receive_screenshot, cancel_deposit, admin_deposit_action
+    choose_crypto_coin, ask_for_proof, receive_screenshot, cancel_deposit, admin_deposit_action
 )
 from src.handlers.buy import (
-    handle_demo, start_buy_groups, buy_choose_currency, buy_choose_method,
-    buy_process_method, buy_receive_gc, buy_request_screenshot, buy_receive_screenshot, admin_buy_action,
+    handle_demo, demo_select_callback, start_buy_groups, buy_choose_currency, buy_choose_method,
+    buy_process_method, buy_crypto_coin_selected, buy_ask_proof, buy_receive_proof, admin_buy_action,
     precheckout_callback, successful_payment_callback
 )
 from src.handlers.admin import start_broadcast, receive_broadcast, add_balance, remove_balance
@@ -25,40 +25,25 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     logger.error("Exception while handling an update:", exc_info=context.error)
     if isinstance(update, Update) and update.effective_message:
         try:
-            await update.effective_message.reply_text("⚠️ An unexpected error occurred. Our team has been notified.")
+            await update.effective_message.reply_text("⚠️ An unexpected error occurred.")
         except Exception:
             pass
 
 async def post_init(application: Application):
     await init_db()
-    logger.info("Bot and Database Initialization Complete.")
+    logger.info("Bot Ready.")
 
 def main():
     app = Application.builder().token(settings.bot_token.get_secret_value()).post_init(post_init).build()
-    
     app.add_error_handler(error_handler)
     nav_buttons_regex = "^(👤 Profile|🛒 Buy Groups|🎬 Demo|📢 Main Channel|💬 Contact Admin|💰 Deposit to Wallet)$"
 
-    # Telegram Stars Payments Native Handlers
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
 
-    # Admin Broadcast FSM
-    broadcast_handler = ConversationHandler(
-        entry_points=[CommandHandler("broadcast", start_broadcast)],
-        states={
-            BROADCAST_WAITING: [MessageHandler(~filters.COMMAND, receive_broadcast)]
-        },
-        fallbacks=[CommandHandler("cancel", cancel_deposit)],
-        per_message=False
-    )
-    app.add_handler(broadcast_handler)
-
-    # Admin Balance Commands
     app.add_handler(CommandHandler("addbalance", add_balance))
     app.add_handler(CommandHandler("removebalance", remove_balance))
 
-    # Base Navigation Handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CallbackQueryHandler(verify_captcha, pattern="^captcha_"))
     app.add_handler(MessageHandler(filters.Regex("^👤 Profile$"), handle_profile))
@@ -66,34 +51,30 @@ def main():
     app.add_handler(MessageHandler(filters.Regex("^💬 Contact Admin$"), handle_support))
     app.add_handler(MessageHandler(filters.Regex("^🎬 Demo$"), handle_demo))
     
-    # Admin Approval Handlers
+    # Global Demo Selector Callback
+    app.add_handler(CallbackQueryHandler(demo_select_callback, pattern="^demo_sel_"))
+
     app.add_handler(CallbackQueryHandler(admin_buy_action, pattern="^buy_(app|rej)_"))
     app.add_handler(CallbackQueryHandler(admin_deposit_action, pattern="^admin_(approve|reject)_"))
 
-    # Buy Groups FSM
     buy_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^🛒 Buy Groups$"), start_buy_groups)],
         states={
             BUY_CHOOSING_CURRENCY: [CallbackQueryHandler(buy_choose_currency, pattern="^buy_sel_")],
             BUY_CHOOSING_METHOD: [CallbackQueryHandler(buy_choose_method, pattern="^buy_curr_")],
-            BUY_GC_CODE: [
+            BUY_CHOOSING_CRYPTO: [
                 CallbackQueryHandler(buy_process_method, pattern="^buy_meth_"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), buy_receive_gc)
+                CallbackQueryHandler(buy_crypto_coin_selected, pattern="^buy_crypt_")
             ],
-            BUY_SCREENSHOT: [
-                CallbackQueryHandler(buy_request_screenshot, pattern="^buy_i_paid$"),
-                MessageHandler(filters.PHOTO, buy_receive_screenshot)
-            ]
+            BUY_CONFIRM_PAYMENT: [CallbackQueryHandler(buy_ask_proof, pattern="^buy_i_paid$")],
+            BUY_GC_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), buy_receive_proof)],
+            BUY_SCREENSHOT: [MessageHandler((filters.PHOTO | filters.TEXT) & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), buy_receive_proof)]
         },
-        fallbacks=[
-            CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$"),
-            MessageHandler(filters.Regex(nav_buttons_regex), cancel_deposit)
-        ],
+        fallbacks=[CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$"), MessageHandler(filters.Regex(nav_buttons_regex), cancel_deposit)],
         per_message=False
     )
     app.add_handler(buy_handler)
 
-    # Deposit FSM
     deposit_handler = ConversationHandler(
         entry_points=[
             CommandHandler("deposit", start_deposit),
@@ -104,19 +85,15 @@ def main():
             CHOOSING_CURRENCY: [CallbackQueryHandler(choose_currency, pattern="^dep_curr_")],
             TYPING_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), receive_amount)],
             CHOOSING_METHOD: [CallbackQueryHandler(choose_method, pattern="^dep_meth_")],
-            CHOOSING_CRYPTO: [CallbackQueryHandler(choose_crypto_coin, pattern="^crypto_")],
-            UPLOADING_SCREENSHOT: [MessageHandler(filters.PHOTO, receive_screenshot)]
+            CHOOSING_CRYPTO: [CallbackQueryHandler(choose_crypto_coin, pattern="^dep_crypt_")],
+            CONFIRM_PAYMENT: [CallbackQueryHandler(ask_for_proof, pattern="^dep_i_paid$")],
+            UPLOADING_SCREENSHOT: [MessageHandler((filters.PHOTO | filters.TEXT) & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), receive_screenshot)]
         },
-        fallbacks=[
-            CommandHandler("cancel", cancel_deposit),
-            CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$"),
-            MessageHandler(filters.Regex(nav_buttons_regex), cancel_deposit)
-        ],
+        fallbacks=[CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$"), MessageHandler(filters.Regex(nav_buttons_regex), cancel_deposit)],
         per_message=False
     )
     app.add_handler(deposit_handler)
 
-    logger.info("Starting polling...")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
