@@ -1,16 +1,31 @@
 from telegram.ext import ConversationHandler
 
-# Deposit Flow States
+# User Flows
 CHOOSING_CURRENCY = 1
 TYPING_AMOUNT = 2
 CHOOSING_METHOD = 3
 CHOOSING_CRYPTO = 4
 UPLOADING_SCREENSHOT = 5
 
-# Buy Flow States
 BUY_CHOOSING_CURRENCY = 6
 BUY_CHOOSING_METHOD = 7
 BUY_GC_CODE = 8
 BUY_SCREENSHOT = 9
+
+# Admin Flows
+ADMIN_MENU = 10
+ADMIN_SET_SETTING = 11
+
+# Add Group Flow
+ADMIN_G_NAME = 12
+ADMIN_G_DESC = 13
+ADMIN_G_INR = 14
+ADMIN_G_USD = 15
+ADMIN_G_ID = 16
+ADMIN_G_LINK = 17
+
+# Add Demo Flow
+ADMIN_D_NAME = 18
+ADMIN_D_LINK = 19
 
 END = ConversationHandler.END
