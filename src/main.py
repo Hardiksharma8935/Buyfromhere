@@ -24,7 +24,6 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Global Error Handler to prevent application crashes."""
     logger.error("Exception while handling an update:", exc_info=context.error)
     if isinstance(update, Update) and update.effective_message:
         try:
@@ -41,24 +40,28 @@ def main():
     
     app.add_error_handler(error_handler)
 
+    # Keyboard buttons list for fallback matching
+    nav_buttons_regex = "^(👤 Profile|🛒 Buy Groups|🎬 Demo|📢 Main Channel|💬 Contact Admin|💰 Deposit to Wallet)$"
+
     # Admin Settings FSM
     admin_handler = ConversationHandler(
         entry_points=[CommandHandler("admin", start_admin)],
         states={
             ADMIN_MENU: [CallbackQueryHandler(admin_router, pattern="^admin_")],
-            ADMIN_SET_SETTING: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_receive_setting)],
-            ADMIN_G_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_g_name)],
-            ADMIN_G_DESC: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_g_desc)],
-            ADMIN_G_INR: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_g_inr)],
-            ADMIN_G_USD: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_g_usd)],
-            ADMIN_G_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_g_id)],
-            ADMIN_G_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_g_link)],
-            ADMIN_D_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_d_name)],
-            ADMIN_D_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_d_link)]
+            ADMIN_SET_SETTING: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_receive_setting)],
+            ADMIN_G_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_g_name)],
+            ADMIN_G_DESC: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_g_desc)],
+            ADMIN_G_INR: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_g_inr)],
+            ADMIN_G_USD: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_g_usd)],
+            ADMIN_G_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_g_id)],
+            ADMIN_G_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_g_link)],
+            ADMIN_D_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_d_name)],
+            ADMIN_D_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), admin_d_link)]
         },
         fallbacks=[
             CommandHandler("cancel", cancel_deposit),
-            CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$")
+            CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$"),
+            MessageHandler(filters.Regex(nav_buttons_regex), cancel_deposit)
         ],
         per_message=False
     )
@@ -84,7 +87,7 @@ def main():
             BUY_CHOOSING_METHOD: [CallbackQueryHandler(buy_choose_method, pattern="^buy_curr_")],
             BUY_GC_CODE: [
                 CallbackQueryHandler(buy_process_method, pattern="^buy_meth_"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, buy_receive_gc)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), buy_receive_gc)
             ],
             BUY_SCREENSHOT: [
                 CallbackQueryHandler(buy_request_screenshot, pattern="^buy_i_paid$"),
@@ -93,7 +96,7 @@ def main():
         },
         fallbacks=[
             CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$"),
-            MessageHandler(filters.Regex("^(👤 Profile|🛒 Buy Groups|🎬 Demo|📢 Main Channel|💬 Contact Admin)$"), cancel_deposit)
+            MessageHandler(filters.Regex(nav_buttons_regex), cancel_deposit)
         ],
         per_message=False
     )
@@ -108,7 +111,7 @@ def main():
         ],
         states={
             CHOOSING_CURRENCY: [CallbackQueryHandler(choose_currency, pattern="^dep_curr_")],
-            TYPING_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_amount)],
+            TYPING_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), receive_amount)],
             CHOOSING_METHOD: [CallbackQueryHandler(choose_method, pattern="^dep_meth_")],
             CHOOSING_CRYPTO: [CallbackQueryHandler(choose_crypto_coin, pattern="^crypto_")],
             UPLOADING_SCREENSHOT: [MessageHandler(filters.PHOTO, receive_screenshot)]
@@ -116,7 +119,7 @@ def main():
         fallbacks=[
             CommandHandler("cancel", cancel_deposit),
             CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$"),
-            MessageHandler(filters.Regex("^(👤 Profile|🛒 Buy Groups|🎬 Demo|📢 Main Channel|💬 Contact Admin)$"), cancel_deposit)
+            MessageHandler(filters.Regex(nav_buttons_regex), cancel_deposit)
         ],
         per_message=False
     )
