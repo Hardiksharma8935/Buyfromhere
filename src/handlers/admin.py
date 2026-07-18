@@ -1,116 +1,119 @@
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import ContextTypes, ConversationHandler
+import logging
+from telegram import Update
+from telegram.ext import ContextTypes
+from telegram.error import Forbidden, BadRequest
 from src.database.core import AsyncSessionLocal
-from src.database.models import Group, DemoGroup, Setting
-from src.utils.keyboards import PremiumUI
+from src.database.models import User
 from src.utils.states import *
 from src.config import settings
+from sqlalchemy import select
 
-async def start_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+logger = logging.getLogger(__name__)
+
+# --- BROADCAST SYSTEM ---
+async def start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != settings.owner_id:
         return
-    await update.message.reply_text("👑 **Admin Panel**\nSelect an option to manage your bot:", reply_markup=PremiumUI.admin_main_menu())
-    return ADMIN_MENU
+    await update.message.reply_text("📢 **Broadcast Mode**\n\nSend the message you want to broadcast (Text, Photo, Video, File, etc.).\n\nSend /cancel to abort.", parse_mode="Markdown")
+    return BROADCAST_WAITING
 
-async def admin_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
+async def receive_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⏳ Broadcasting started... Please wait.")
     
-    if data == "admin_home":
-        await query.edit_message_text("👑 **Admin Panel**\nSelect an option to manage your bot:", reply_markup=PremiumUI.admin_main_menu())
-        return ADMIN_MENU
-        
-    elif data == "admin_settings":
-        await query.edit_message_text("⚙️ **Settings**\nSelect a configuration to update:", reply_markup=PremiumUI.admin_settings_menu())
-        return ADMIN_MENU
-        
-    elif data.startswith("admin_set_"):
-        key = data.replace("admin_set_", "")
-        context.user_data['setting_key'] = key
-        await query.edit_message_text(f"Please send the new value for **{key}**:\n\nSend /cancel to abort.", parse_mode="Markdown")
-        return ADMIN_SET_SETTING
-
-    elif data == "admin_groups":
-        keyboard = [[InlineKeyboardButton("➕ Add New Group", callback_data="admin_add_group")], [InlineKeyboardButton("🔙 Back", callback_data="admin_home")]]
-        await query.edit_message_text("📦 **Group Management**\nAdd or remove premium groups.", reply_markup=InlineKeyboardMarkup(keyboard))
-        return ADMIN_MENU
-        
-    elif data == "admin_add_group":
-        await query.edit_message_text("Send the **Name** of the new group (e.g. Premium Movies):")
-        return ADMIN_G_NAME
-
-    elif data == "admin_demos":
-        keyboard = [[InlineKeyboardButton("➕ Add New Demo", callback_data="admin_add_demo")], [InlineKeyboardButton("🔙 Back", callback_data="admin_home")]]
-        await query.edit_message_text("🎬 **Demo Management**\nAdd or remove demo links.", reply_markup=InlineKeyboardMarkup(keyboard))
-        return ADMIN_MENU
-        
-    elif data == "admin_add_demo":
-        await query.edit_message_text("Send the **Name** of the Demo Group:")
-        return ADMIN_D_NAME
-
-async def admin_receive_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    key = context.user_data.get('setting_key')
-    value = update.message.text
     async with AsyncSessionLocal() as session:
-        setting = await session.get(Setting, key)
-        if setting:
-            setting.value = value
-        else:
-            session.add(Setting(key=key, value=value))
-        await session.commit()
-    await update.message.reply_text(f"✅ Setting `{key}` updated to:\n{value}", parse_mode="Markdown")
-    return END
-
-async def admin_g_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['g_name'] = update.message.text
-    await update.message.reply_text("Send the **Description**:")
-    return ADMIN_G_DESC
-
-async def admin_g_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['g_desc'] = update.message.text
-    await update.message.reply_text("Send the **INR Price** (Number only):")
-    return ADMIN_G_INR
-
-async def admin_g_inr(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['g_inr'] = float(update.message.text)
-    await update.message.reply_text("Send the **USD Price** (Number only):")
-    return ADMIN_G_USD
-
-async def admin_g_usd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['g_usd'] = float(update.message.text)
-    await update.message.reply_text("Send the **Telegram Group ID** (e.g., -100123456789) or type '0' to skip:")
-    return ADMIN_G_ID
-
-async def admin_g_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    val = update.message.text
-    context.user_data['g_id'] = int(val) if val != '0' else None
-    await update.message.reply_text("Send the fallback **Invite Link** (https://t.me/...):")
-    return ADMIN_G_LINK
-
-async def admin_g_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    async with AsyncSessionLocal() as session:
-        session.add(Group(
-            name=context.user_data['g_name'], description=context.user_data['g_desc'],
-            price_inr=context.user_data['g_inr'], price_usd=context.user_data['g_usd'],
-            telegram_group_id=context.user_data['g_id'], invite_link=update.message.text,
-            purchase_link="", demo_link="" # Overriding NOT NULL constraints from old DB
-        ))
-        await session.commit()
-    await update.message.reply_text("✅ Group added successfully!")
-    context.user_data.clear()
-    return END
-
-async def admin_d_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['d_name'] = update.message.text
-    await update.message.reply_text("Send the **Demo Link** (https://t.me/...):")
-    return ADMIN_D_LINK
-
-async def admin_d_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    async with AsyncSessionLocal() as session:
-        session.add(DemoGroup(name=context.user_data['d_name'], demo_link=update.message.text))
-        await session.commit()
-    await update.message.reply_text("✅ Demo added successfully!")
-    context.user_data.clear()
-    return END
+        result = await session.execute(select(User.telegram_id))
+        users = result.scalars().all()
+        
+    total = len(users)
+    delivered = 0
+    failed = 0
+    blocked = 0
+    deleted = 0
     
+    for uid in users:
+        try:
+            # copy_message flawlessly handles all formatting, spoilers, media, and captions natively
+            await context.bot.copy_message(chat_id=uid, from_chat_id=update.effective_chat.id, message_id=update.message.message_id)
+            delivered += 1
+        except Forbidden:
+            blocked += 1
+        except BadRequest as e:
+            if "chat not found" in str(e).lower() or "deleted" in str(e).lower():
+                deleted += 1
+            else:
+                failed += 1
+        except Exception:
+            failed += 1
+            
+    stats = (f"📢 **Broadcast Complete**\n\n"
+             f"👥 **Total Users:** {total}\n"
+             f"✅ **Delivered:** {delivered}\n"
+             f"❌ **Failed:** {failed}\n"
+             f"🚫 **Blocked:** {blocked}\n"
+             f"🗑️ **Deleted Accounts:** {deleted}")
+             
+    await update.message.reply_text(stats, parse_mode="Markdown")
+    return END
+
+# --- WALLET COMMANDS ---
+async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != settings.owner_id:
+        return
+        
+    if len(context.args) < 2:
+        await update.message.reply_text("⚠️ Usage: `/addbalance <user_id> <amount>`", parse_mode="Markdown")
+        return
+        
+    try:
+        user_id = int(context.args[0])
+        amount = float(context.args[1])
+        
+        async with AsyncSessionLocal() as session:
+            user = await session.execute(select(User).where(User.telegram_id == user_id))
+            db_user = user.scalar_one_or_none()
+            if not db_user:
+                await update.message.reply_text("❌ User not found in database.")
+                return
+                
+            db_user.balance_inr += amount
+            await session.commit()
+            
+        await update.message.reply_text(f"✅ Successfully added ₹{amount} to {user_id}'s wallet.")
+        try:
+            await context.bot.send_message(chat_id=user_id, text=f"💰 **Balance Update**\n\n₹{amount} has been added to your wallet by the Admin.", parse_mode="Markdown")
+        except Exception:
+            pass
+            
+    except ValueError:
+        await update.message.reply_text("⚠️ Invalid ID or Amount.")
+
+async def remove_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != settings.owner_id:
+        return
+        
+    if len(context.args) < 2:
+        await update.message.reply_text("⚠️ Usage: `/removebalance <user_id> <amount>`", parse_mode="Markdown")
+        return
+        
+    try:
+        user_id = int(context.args[0])
+        amount = float(context.args[1])
+        
+        async with AsyncSessionLocal() as session:
+            user = await session.execute(select(User).where(User.telegram_id == user_id))
+            db_user = user.scalar_one_or_none()
+            if not db_user:
+                await update.message.reply_text("❌ User not found in database.")
+                return
+                
+            db_user.balance_inr = max(0.0, db_user.balance_inr - amount)
+            await session.commit()
+            
+        await update.message.reply_text(f"✅ Successfully removed ₹{amount} from {user_id}'s wallet.")
+        try:
+            await context.bot.send_message(chat_id=user_id, text=f"💰 **Balance Update**\n\n₹{amount} has been deducted from your wallet by the Admin.", parse_mode="Markdown")
+        except Exception:
+            pass
+            
+    except ValueError:
+        await update.message.reply_text("⚠️ Invalid ID or Amount.")
