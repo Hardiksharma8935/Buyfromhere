@@ -41,7 +41,7 @@ class PremiumUI:
     def payment_methods() -> InlineKeyboardMarkup:
         return InlineKeyboardMarkup([
             [InlineKeyboardButton("🪙 Crypto", callback_data="dep_meth_Crypto"), InlineKeyboardButton("🏦 UPI", callback_data="dep_meth_UPI")],
-            [InlineKeyboardButton("🛍️ Amazon Gift Card", callback_data="dep_meth_Amazon")],
+            [InlineKeyboardButton("🛍️ Amazon Gift Card", callback_data="dep_meth_Amazon"), InlineKeyboardButton("⭐ Telegram Stars", callback_data="dep_meth_Stars")],
             PremiumUI.cancel_inline()
         ])
 
@@ -63,20 +63,19 @@ class PremiumUI:
     @staticmethod
     def buy_payment_methods(group_id: str) -> InlineKeyboardMarkup:
         return InlineKeyboardMarkup([
-            [InlineKeyboardButton("🪙 Crypto", callback_data=f"buy_meth_Crypto_{group_id}"), InlineKeyboardButton("⭐ Telegram Stars", callback_data=f"buy_meth_Stars_{group_id}")],
-            [InlineKeyboardButton("🛍️ Amazon Gift Card", callback_data=f"buy_meth_Amazon_{group_id}")],
+            [InlineKeyboardButton("🪙 Crypto", callback_data=f"buy_meth_Crypto_{group_id}"), InlineKeyboardButton("🏦 UPI", callback_data=f"buy_meth_UPI_{group_id}")],
+            [InlineKeyboardButton("🛍️ Amazon Gift Card", callback_data=f"buy_meth_Amazon_{group_id}"), InlineKeyboardButton("⭐ Telegram Stars", callback_data=f"buy_meth_Stars_{group_id}")],
             PremiumUI.cancel_inline()
         ])
 
     @staticmethod
     def group_list() -> InlineKeyboardMarkup:
-        keyboard = [[InlineKeyboardButton(f"{v['name']} - ₹{v['price']} | ${v['usd_price']}", callback_data=f"buy_sel_{k}")] for k, v in GROUPS.items()]
+        keyboard = [[InlineKeyboardButton(f"{v['name']} - ₹{v['price']}", callback_data=f"buy_sel_{k}")] for k, v in GROUPS.items()]
         keyboard.append(PremiumUI.cancel_inline())
         return InlineKeyboardMarkup(keyboard)
 
     @staticmethod
     def demo_list() -> InlineKeyboardMarkup:
-        # Changed to use callback data instead of direct URL for cleaner UI
-        keyboard = [[InlineKeyboardButton(f"🎬 {v['name']}", callback_data=f"demo_sel_{k}")] for k, v in GROUPS.items() if v.get('demo')]
+        keyboard = [[InlineKeyboardButton(f"🎬 {v['name']}", callback_data=f"demo_sel_{k}")] for k, v in GROUPS.items()]
         return InlineKeyboardMarkup(keyboard)
         
