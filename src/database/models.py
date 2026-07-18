@@ -4,7 +4,6 @@ from src.database.core import Base
 
 class User(Base):
     __tablename__ = 'users'
-    
     id = Column(Integer, primary_key=True, index=True)
     telegram_id = Column(BigInteger, unique=True, index=True, nullable=False)
     username = Column(String, nullable=True)
@@ -19,19 +18,24 @@ class User(Base):
 
 class Group(Base):
     __tablename__ = 'groups'
-    
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
     price_inr = Column(Float, nullable=False)
     price_usd = Column(Float, nullable=False)
-    purchase_link = Column(String, nullable=False)
+    telegram_group_id = Column(BigInteger, nullable=True)
+    invite_link = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+
+class DemoGroup(Base):
+    __tablename__ = 'demo_groups'
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
     demo_link = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
 
 class Transaction(Base):
     __tablename__ = 'transactions'
-    
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(BigInteger, ForeignKey('users.telegram_id'), nullable=False)
     amount = Column(Float, nullable=False)
@@ -44,7 +48,6 @@ class Transaction(Base):
 
 class Setting(Base):
     __tablename__ = 'settings'
-    
     key = Column(String, primary_key=True, index=True)
     value = Column(String, nullable=False)
     
