@@ -19,7 +19,7 @@ async def init_db():
             "ETH_ADDRESS": "your_eth_wallet_here",
             "SOL_ADDRESS": "your_sol_wallet_here",
             "USDT_ADDRESS": "your_usdt_wallet_here",
-            "MAIN_CHANNEL_LINK": "https://t.me/your_channel",
+            "MAIN_CHANNEL_LINK": "https://t.me/telegram",
             "AMAZON_MIN_DEPOSIT": "100"
         }
         
