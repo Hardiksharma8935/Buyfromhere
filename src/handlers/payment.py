@@ -12,10 +12,13 @@ from src.utils.keyboards import PremiumUI
 logger = logging.getLogger(__name__)
 
 async def start_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear() # Instantly reset any interrupted state
     text = "💰 **Deposit Funds**\nPlease select your preferred currency."
+    
     if update.message:
         await update.message.reply_text(text, reply_markup=PremiumUI.currency_selection(), parse_mode="Markdown")
     elif update.callback_query:
+        await update.callback_query.answer() # FIXED: Prevents Telegram loading spinner freeze
         await update.callback_query.edit_message_text(text, reply_markup=PremiumUI.currency_selection(), parse_mode="Markdown")
     return CHOOSING_CURRENCY
 
@@ -73,15 +76,22 @@ async def choose_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❖ **𝗔𝗺𝗮𝘇𝗼𝗻 𝗚𝗶𝗳𝘁 𝗖𝗮𝗿𝗱**\n"
             "──────────────────────\n"
             f"🛒 **Required:** ₹{amount} INR Gift Card\n\n"
-            "Please purchase the card, then click **I Paid**."
+            "⌨️ **Please send your Amazon Gift Card Code (INR) in this chat.**"
         )
-        await query.edit_message_text(text, reply_markup=PremiumUI.i_paid_keyboard("dep"), parse_mode="Markdown")
-        return CONFIRM_PAYMENT
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup([PremiumUI.cancel_inline()]), parse_mode="Markdown")
+        return RECEIVING_GC_CODE
 
     elif method == "Crypto":
         text = "🪙 **Select Cryptocurrency:**"
         await query.edit_message_text(text, reply_markup=PremiumUI.crypto_selection(prefix="dep_crypt"), parse_mode="Markdown")
         return CHOOSING_CRYPTO
+
+async def receive_gc_code(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles receiving the GC Code as text before showing I Paid."""
+    context.user_data['gc_code'] = update.message.text
+    text = f"✅ **Code Received:** `{update.message.text}`\n\nPlease click **I Paid** to submit this code for verification, or **Cancel** to abort."
+    await update.message.reply_text(text, reply_markup=PremiumUI.i_paid_keyboard("dep"), parse_mode="Markdown")
+    return CONFIRM_PAYMENT
 
 async def choose_crypto_coin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -106,12 +116,41 @@ async def choose_crypto_coin(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def ask_for_proof(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await query.edit_message_text("📸 **Upload your payment screenshot or Gift Card code below:**", reply_markup=InlineKeyboardMarkup([PremiumUI.cancel_inline()]), parse_mode="Markdown")
-    return UPLOADING_SCREENSHOT
+    method = context.user_data.get('deposit_method', '')
+
+    if method == "Amazon":
+        # Direct submission, no screenshot required for GC.
+        user = update.effective_user
+        amount = context.user_data['deposit_amount']
+        currency = context.user_data['deposit_currency']
+        gc_code = context.user_data.get('gc_code', '')
+
+        async with AsyncSessionLocal() as session:
+            new_tx = Transaction(user_id=user.id, amount=amount, currency=currency, method=method, screenshot_id=None)
+            session.add(new_tx)
+            await session.commit()
+            await session.refresh(new_tx)
+            tx_id = new_tx.id
+
+        admin_text = (f"🚨 **New Wallet Deposit (Amazon GC)**\n\n👤 {user.full_name} (@{user.username})\n🆔 `{user.id}`\n"
+                      f"💵 {amount} {currency}\n💳 {method}\n🎟️ Code: `{gc_code}`\n🕒 Time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
+        
+        keyboard = [[InlineKeyboardButton("✅ Approve", callback_data=f"admin_approve_{tx_id}"), InlineKeyboardButton("❌ Reject", callback_data=f"admin_reject_{tx_id}")]]
+        
+        await context.bot.send_message(chat_id=settings.owner_id, text=admin_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+            
+        await query.edit_message_text("✅ **Gift Card Code Submitted.** Verification in progress.", parse_mode="Markdown")
+        context.user_data.clear()
+        return END
+
+    else:
+        # Crypto and UPI require Screenshot
+        await query.edit_message_text("📸 **Upload your payment screenshot below:**", reply_markup=InlineKeyboardMarkup([PremiumUI.cancel_inline()]), parse_mode="Markdown")
+        return UPLOADING_SCREENSHOT
 
 async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.photo and not update.message.text:
-        await update.message.reply_text("⚠️ Please upload a valid photo/screenshot or text code.")
+    if not update.message.photo:
+        await update.message.reply_text("⚠️ Please upload a valid photo/screenshot.")
         return UPLOADING_SCREENSHOT
 
     user = update.message.from_user
@@ -119,8 +158,7 @@ async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE)
     currency = context.user_data['deposit_currency']
     method = context.user_data['deposit_method']
     coin = context.user_data.get('deposit_crypto_coin', '')
-    
-    photo_file_id = update.message.photo[-1].file_id if update.message.photo else None
+    photo_file_id = update.message.photo[-1].file_id
     
     async with AsyncSessionLocal() as session:
         new_tx = Transaction(user_id=user.id, amount=amount, currency=currency, method=method, crypto_coin=coin, screenshot_id=photo_file_id)
@@ -129,23 +167,17 @@ async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await session.refresh(new_tx)
         tx_id = new_tx.id
 
-    admin_text = (f"🚨 **New Wallet Deposit**\n\n👤 {user.full_name} (@{user.username})\n🆔 `{user.id}`\n"
-                  f"💵 {amount} {currency}\n💳 {method} {coin}")
-    if update.message.text: admin_text += f"\n🎟️ Code: `{update.message.text}`"
+    admin_text = (f"🚨 **New Wallet Deposit (Screenshot)**\n\n👤 {user.full_name} (@{user.username})\n🆔 `{user.id}`\n"
+                  f"💵 {amount} {currency}\n💳 {method} {coin}\n🕒 Time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
     
     keyboard = [[InlineKeyboardButton("✅ Approve", callback_data=f"admin_approve_{tx_id}"), InlineKeyboardButton("❌ Reject", callback_data=f"admin_reject_{tx_id}")]]
-    
-    if photo_file_id:
-        await context.bot.send_photo(chat_id=settings.owner_id, photo=photo_file_id, caption=admin_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
-    else:
-        await context.bot.send_message(chat_id=settings.owner_id, text=admin_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+    await context.bot.send_photo(chat_id=settings.owner_id, photo=photo_file_id, caption=admin_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
         
     await update.message.reply_text("✅ **Payment Proof Submitted.** Verification in progress.", parse_mode="Markdown", reply_markup=PremiumUI.main_menu())
     context.user_data.clear()
     return END
 
 async def admin_deposit_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles the Admin's Approve/Reject button clicks for deposits."""
     query = update.callback_query
     await query.answer()
     
@@ -156,7 +188,10 @@ async def admin_deposit_action(update: Update, context: ContextTypes.DEFAULT_TYP
         async with AsyncSessionLocal() as session:
             tx = await session.get(Transaction, tx_id)
             if not tx or tx.status != 'Pending':
-                await query.edit_message_caption(caption=query.message.caption + "\n\n⚠️ STATUS: ALREADY PROCESSED")
+                if query.message.photo:
+                    await query.edit_message_caption(caption=query.message.caption + "\n\n⚠️ STATUS: ALREADY PROCESSED")
+                else:
+                    await query.edit_message_text(text=query.message.text + "\n\n⚠️ STATUS: ALREADY PROCESSED")
                 return
 
             if action == "approve":
@@ -195,10 +230,6 @@ async def admin_deposit_action(update: Update, context: ContextTypes.DEFAULT_TYP
                 
     except Exception as e:
         logger.error(f"Admin Deposit Error: {e}")
-        if query.message.photo:
-            await query.edit_message_caption(caption=query.message.caption + "\n\n⚠️ PROCESSING ERROR")
-        else:
-            await query.edit_message_text(text=query.message.text + "\n\n⚠️ PROCESSING ERROR")
 
 async def cancel_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -209,4 +240,3 @@ async def cancel_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(text, parse_mode="Markdown", reply_markup=PremiumUI.main_menu())
     return END
-    
