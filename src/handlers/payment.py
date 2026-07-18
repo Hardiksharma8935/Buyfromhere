@@ -85,7 +85,15 @@ async def choose_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = "🪙 **Select Cryptocurrency:**"
         await query.edit_message_text(text, reply_markup=PremiumUI.crypto_selection(prefix="dep_crypt"), parse_mode="Markdown")
         return CHOOSING_CRYPTO
-
+        
+# Inside choose_method(update, context):
+    elif method == "Stars":
+        # Telegram Stars cannot be "deposited" easily via screenshot. 
+        # Usually Stars are spent directly. If you want to allow Stars deposit:
+        text = "⭐ **Telegram Stars Deposit**\nMessage the Admin to provide your Stars payment details."
+        await query.edit_message_text(text, reply_markup=PremiumUI.i_paid_keyboard("dep"), parse_mode="Markdown")
+        return CONFIRM_PAYMENT
+        
 async def receive_gc_code(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles receiving the GC Code as text before showing I Paid."""
     context.user_data['gc_code'] = update.message.text
