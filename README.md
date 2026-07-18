@@ -1,13 +1,19 @@
 # Premium Telegram Payment Bot
 
-## Railway Deployment
-1. Connect your GitHub repository to Railway.
-2. Add a **PostgreSQL** plugin in Railway.
-3. Add the environment variables from `.env.example` to your Railway Project Variables. (Make sure `DATABASE_URL` starts with `postgresql+asyncpg://`).
+## Environment Setup
+Store your crypto wallet addresses directly in Railway Variables using the keys:
+`USDT_ADDRESS`, `BTC_ADDRESS`, `ETH_ADDRESS`, `SOL_ADDRESS`.
+No need to edit the source code to change addresses.
 
-## Database Migrations
-This bot uses **Zero-Touch Introspection Migrations**. When the bot boots up on Railway, it automatically checks the PostgreSQL schema and safely applies `ALTER TABLE` commands for any missing columns without deleting existing user data. No CLI required.
+## Group Configuration
+Open `src/groups_config.py` to add, edit, or remove your private groups. 
+The bot reads this file instantly.
 
-## Admin Features
-Send `/admin` to the bot to access the control panel to add Groups, Demos, and update Settings on the fly.
-Ensure the bot is added as an **Administrator** with "Invite Users via Link" permissions in your private groups for automatic invite delivery to function.
+## Automatic Invite Links
+When a user pays via Telegram Stars (or when Admin approves an Amazon/Crypto/UPI payment), the bot uses `member_limit=1` to generate a secure, 1-time-use invite link via the API and sends it securely to the user's DM. **You must add the bot as an Administrator in your private groups with the "Invite Users via Link" permission.**
+
+## Admin Broadcast & Wallet System
+- Send `/broadcast` -> Then send any text, photo, video, or document. It natively copies exact formatting/spoilers.
+- Send `/addbalance <user_id> <amount>` -> To manual credit.
+- Send `/removebalance <user_id> <amount>` -> To manual deduct.
+- 
