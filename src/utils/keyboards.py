@@ -9,9 +9,8 @@ class PremiumUI:
             [KeyboardButton("🎁 Referral"), KeyboardButton("📜 History")],
             [KeyboardButton("📢 Channel"), KeyboardButton("🎧 Support")]
         ]
-        # resize_keyboard=True makes the buttons small and mobile-friendly
-        return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, persistent=True)
-
+                return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, is_persistent=True)
+        
     @staticmethod
     def back_button(callback_data: str = "main_menu") -> list:
         return [InlineKeyboardButton("🔙 Back", callback_data=callback_data)]
