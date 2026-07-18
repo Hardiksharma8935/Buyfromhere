@@ -14,6 +14,10 @@ from src.handlers.buy import (
     handle_demo, start_buy_groups, buy_choose_currency, buy_choose_method,
     buy_process_method, buy_receive_gc, buy_request_screenshot, buy_receive_screenshot, admin_buy_action
 )
+from src.handlers.admin import (
+    start_admin, admin_router, admin_receive_setting, admin_g_name, admin_g_desc,
+    admin_g_inr, admin_g_usd, admin_g_id, admin_g_link, admin_d_name, admin_d_link
+)
 from src.utils.states import *
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -26,16 +30,39 @@ async def post_init(application: Application):
 def main():
     app = Application.builder().token(settings.bot_token.get_secret_value()).post_init(post_init).build()
 
+    # Admin FSM
+    admin_handler = ConversationHandler(
+        entry_points=[CommandHandler("admin", start_admin)],
+        states={
+            ADMIN_MENU: [CallbackQueryHandler(admin_router, pattern="^admin_")],
+            ADMIN_SET_SETTING: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_receive_setting)],
+            ADMIN_G_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_g_name)],
+            ADMIN_G_DESC: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_g_desc)],
+            ADMIN_G_INR: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_g_inr)],
+            ADMIN_G_USD: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_g_usd)],
+            ADMIN_G_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_g_id)],
+            ADMIN_G_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_g_link)],
+            ADMIN_D_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_d_name)],
+            ADMIN_D_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_d_link)]
+        },
+        fallbacks=[
+            CommandHandler("cancel", cancel_deposit),
+            CallbackQueryHandler(cancel_deposit, pattern="^cancel_action$")
+        ],
+        per_message=False
+    )
+    app.add_handler(admin_handler)
+
+    # Core Navigation 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CallbackQueryHandler(verify_captcha, pattern="^captcha_"))
-    
     app.add_handler(MessageHandler(filters.Regex("^👤 Profile$"), handle_profile))
     app.add_handler(MessageHandler(filters.Regex("^📢 Main Channel$"), handle_main_channel))
     app.add_handler(MessageHandler(filters.Regex("^💬 Contact Admin$"), handle_support))
     app.add_handler(MessageHandler(filters.Regex("^🎬 Demo$"), handle_demo))
-    
     app.add_handler(CallbackQueryHandler(admin_buy_action, pattern="^buy_(app|rej)_"))
 
+    # Buy Groups FSM Flow
     buy_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^🛒 Buy Groups$"), start_buy_groups)],
         states={
@@ -56,11 +83,13 @@ def main():
         ],
         per_message=False
     )
+    app.add_handler(buy_handler)
 
+    # Deposit FSM Flow
     deposit_handler = ConversationHandler(
         entry_points=[
             CommandHandler("deposit", start_deposit),
-            MessageHandler(filters.Regex("^💰 Deposit to Wallet$"), start_deposit), # Fixed Trigger
+            MessageHandler(filters.Regex("^💰 Deposit to Wallet$"), start_deposit),
             CallbackQueryHandler(start_deposit, pattern="^start_deposit_flow$")
         ],
         states={
@@ -77,8 +106,6 @@ def main():
         ],
         per_message=False
     )
-
-    app.add_handler(buy_handler)
     app.add_handler(deposit_handler)
 
     logger.info("Starting polling...")
