@@ -1,6 +1,5 @@
 from telegram.ext import ConversationHandler
 
-# User Flows
 CHOOSING_CURRENCY = 1
 TYPING_AMOUNT = 2
 CHOOSING_METHOD = 3
@@ -12,20 +11,6 @@ BUY_CHOOSING_METHOD = 7
 BUY_GC_CODE = 8
 BUY_SCREENSHOT = 9
 
-# Admin Flows
-ADMIN_MENU = 10
-ADMIN_SET_SETTING = 11
-
-# Add Group Flow
-ADMIN_G_NAME = 12
-ADMIN_G_DESC = 13
-ADMIN_G_INR = 14
-ADMIN_G_USD = 15
-ADMIN_G_ID = 16
-ADMIN_G_LINK = 17
-
-# Add Demo Flow
-ADMIN_D_NAME = 18
-ADMIN_D_LINK = 19
+BROADCAST_WAITING = 20
 
 END = ConversationHandler.END
