@@ -4,29 +4,20 @@ from telegram.ext import ContextTypes, ConversationHandler
 from datetime import datetime
 from src.utils.states import *
 from src.config import settings
-from src.database.models import Transaction, Setting, User
+from src.database.models import Transaction, User
 from src.database.core import AsyncSessionLocal
 from sqlalchemy import select
 from src.utils.keyboards import PremiumUI
 
 logger = logging.getLogger(__name__)
 
-async def get_setting(session, key: str, default: str = "") -> str:
-    result = await session.execute(select(Setting).where(Setting.key == key))
-    setting = result.scalar_one_or_none()
-    return setting.value if setting else default
-
 async def start_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = "❖ **𝗗𝗲𝗽𝗼𝘀𝗶𝘁 𝗙𝘂𝗻𝗱𝘀**\n──────────────────────\nPlease select your preferred currency."
-    try:
-        if update.message:
-            await update.message.reply_text(text, reply_markup=PremiumUI.currency_selection(), parse_mode="Markdown")
-        elif update.callback_query:
-            await update.callback_query.edit_message_text(text, reply_markup=PremiumUI.currency_selection(), parse_mode="Markdown")
-        return CHOOSING_CURRENCY
-    except Exception as e:
-        logger.error(f"Deposit Error: {e}")
-        return END
+    if update.message:
+        await update.message.reply_text(text, reply_markup=PremiumUI.currency_selection(), parse_mode="Markdown")
+    elif update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=PremiumUI.currency_selection(), parse_mode="Markdown")
+    return CHOOSING_CURRENCY
 
 async def choose_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -68,7 +59,8 @@ async def choose_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         keyboard = [[InlineKeyboardButton("📲 Message Admin for UPI", url=upi_link)], PremiumUI.cancel_inline()]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
-        return ConversationHandler.END
+        # FIXED: Return a waiting state instead of END so the Cancel button works
+        return UPLOADING_SCREENSHOT 
 
     elif method == "Amazon":
         currency = context.user_data['deposit_currency']
@@ -99,9 +91,14 @@ async def choose_crypto_coin(update: Update, context: ContextTypes.DEFAULT_TYPE)
     coin = query.data.split("_")[1]
     context.user_data['deposit_crypto_coin'] = coin
     
-    async with AsyncSessionLocal() as session:
-        address = await get_setting(session, f"{coin}_ADDRESS", "Address not configured.")
-    
+    # Load dynamically from environment variables
+    addresses = {
+        "USDT": settings.usdt_address,
+        "BTC": settings.btc_address,
+        "ETH": settings.eth_address,
+        "SOL": settings.sol_address
+    }
+    address = addresses.get(coin, "Address not configured.")
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={address}"
     
     text = (
@@ -166,25 +163,21 @@ async def admin_deposit_action(update: Update, context: ContextTypes.DEFAULT_TYP
                         db_user.balance_inr += tx.amount
                     else:
                         db_user.balance_usd += tx.amount
-                
                 await session.commit()
                 
                 try:
                     await context.bot.send_message(chat_id=tx.user_id, text=f"✅ **Deposit Approved!**\n{tx.amount} {tx.currency} has been added to your wallet.", parse_mode="Markdown")
                 except Exception:
                     pass
-                    
                 await query.edit_message_caption(caption=query.message.caption + "\n\n✅ STATUS: APPROVED & CREDITED")
                 
             else:
                 tx.status = "Rejected"
                 await session.commit()
-                
                 try:
                     await context.bot.send_message(chat_id=tx.user_id, text="❌ **Deposit Rejected.**\nYour payment could not be verified.", parse_mode="Markdown")
                 except Exception:
                     pass
-                
                 await query.edit_message_caption(caption=query.message.caption + "\n\n❌ STATUS: REJECTED")
                 
     except Exception as e:
@@ -199,4 +192,3 @@ async def cancel_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(text, parse_mode="Markdown", reply_markup=PremiumUI.main_menu())
     return END
-    
