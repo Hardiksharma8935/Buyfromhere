@@ -21,5 +21,6 @@ BUY_SCREENSHOT = 15
 
 # Admin States
 BROADCAST_WAITING = 20
+BROADCAST_CONFIRM = 21
 
 END = ConversationHandler.END
