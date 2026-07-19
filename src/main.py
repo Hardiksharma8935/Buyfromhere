@@ -11,12 +11,16 @@ from src.handlers.payment import (
     choose_crypto_coin, receive_gc_code, ask_for_proof, receive_screenshot, cancel_deposit, admin_deposit_action
 )
 from src.handlers.buy import (
-    handle_demo, demo_select_callback, start_buy_groups, buy_choose_currency, buy_choose_method,
-    buy_process_method, buy_crypto_coin_selected, buy_receive_gc_code, buy_ask_proof, buy_receive_proof, admin_buy_action,
-    precheckout_callback, successful_payment_callback
+    handle_demo, demo_select_callback, start_buy_groups, buy_selection_handler, buy_option_handler,
+    buy_choose_currency, buy_choose_method, buy_process_method, buy_crypto_coin_selected, 
+    buy_receive_gc_code, buy_ask_proof, buy_receive_proof, admin_buy_action
 )
 from src.handlers.admin import start_broadcast, receive_broadcast, add_balance, remove_balance
 from src.utils.states import *
+from src.groups_config import GROUPS
+from src.database.models import User, Transaction
+from src.database.core import AsyncSessionLocal
+from sqlalchemy import select
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,6 +32,49 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
             await update.effective_message.reply_text("⚠️ An unexpected error occurred.")
         except Exception:
             pass
+
+async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.pre_checkout_query
+    if query.invoice_payload.startswith("buy_") or query.invoice_payload.startswith("dep_stars_"):
+        await query.answer(ok=True)
+    else:
+        await query.answer(ok=False, error_message="Something went wrong.")
+
+async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    payment = update.message.successful_payment
+    payload = payment.invoice_payload
+    user = update.effective_user
+
+    if payload.startswith("buy_"):
+        parts = payload.split("_")
+        group_id = parts[1]
+        group = GROUPS[group_id]
+        async with AsyncSessionLocal() as session:
+            db_user = await session.get(User, user.id)
+            if db_user: db_user.total_purchases += 1
+            new_tx = Transaction(user_id=user.id, amount=payment.total_amount, currency=payment.currency, method="Stars", status="Approved")
+            session.add(new_tx)
+            await session.commit()
+        try:
+            invite = await context.bot.create_chat_invite_link(chat_id=group["chat_id"], member_limit=1, name=f"Stars_{user.id}")
+            await update.message.reply_text(f"✅ **Payment Successful!**\n\nYour access link for **{group['name']}**:\n{invite.invite_link}\n\n⚠️ *Single-use only.*", parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"Stars Invite Link Error: {e}")
+            await update.message.reply_text("✅ Payment successful, but we couldn't generate the invite link. Contact Admin.")
+
+    elif payload.startswith("dep_stars_"):
+        parts = payload.split("_")
+        amount = float(parts[2])
+        currency = parts[3]
+        async with AsyncSessionLocal() as session:
+            db_user = await session.get(User, user.id)
+            if db_user:
+                if currency == "INR": db_user.balance_inr += amount
+                else: db_user.balance_usd += amount
+                new_tx = Transaction(user_id=user.id, amount=amount, currency=currency, method="Stars", status="Approved")
+                session.add(new_tx)
+                await session.commit()
+        await update.message.reply_text("✅ **Payment received successfully!** Your wallet has been credited.")
 
 async def post_init(application: Application):
     await init_db()
@@ -59,12 +106,11 @@ def main():
     buy_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^🛒 Buy Groups$"), start_buy_groups)],
         states={
-            BUY_CHOOSING_CURRENCY: [CallbackQueryHandler(buy_choose_currency, pattern="^buy_sel_")],
-            BUY_CHOOSING_METHOD: [CallbackQueryHandler(buy_choose_method, pattern="^buy_curr_")],
-            BUY_CHOOSING_CRYPTO: [
-                CallbackQueryHandler(buy_process_method, pattern="^buy_meth_"),
-                CallbackQueryHandler(buy_crypto_coin_selected, pattern="^buy_crypt_")
-            ],
+            BUY_CHOOSING_OPTION: [CallbackQueryHandler(buy_selection_handler, pattern="^buy_sel_")],
+            BUY_ROUTING: [CallbackQueryHandler(buy_option_handler, pattern="^buy_opt_")],
+            BUY_CHOOSING_CURRENCY: [CallbackQueryHandler(buy_choose_currency, pattern="^buy_curr_")],
+            BUY_CHOOSING_METHOD: [CallbackQueryHandler(buy_process_method, pattern="^buy_meth_")],
+            BUY_CHOOSING_CRYPTO: [CallbackQueryHandler(buy_crypto_coin_selected, pattern="^buy_crypt_")],
             BUY_RECEIVING_GC_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex(nav_buttons_regex), buy_receive_gc_code)],
             BUY_CONFIRM_PAYMENT: [CallbackQueryHandler(buy_ask_proof, pattern="^buy_i_paid$")],
             BUY_SCREENSHOT: [MessageHandler(filters.PHOTO & ~filters.COMMAND, buy_receive_proof)]
