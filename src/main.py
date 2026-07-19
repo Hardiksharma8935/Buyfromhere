@@ -12,7 +12,7 @@ from src.handlers.payment import (
 )
 from src.handlers.buy import (
     handle_demo, demo_select_callback, start_buy_groups, buy_selection_handler, buy_option_handler,
-    buy_choose_currency, buy_choose_method, buy_process_method, buy_crypto_coin_selected, 
+    buy_choose_currency, buy_process_method, buy_crypto_coin_selected, 
     buy_receive_gc_code, buy_ask_proof, buy_receive_proof, admin_buy_action
 )
 from src.handlers.admin import start_broadcast, receive_broadcast, add_balance, remove_balance
