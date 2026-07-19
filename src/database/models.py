@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, Float, Integer, DateTime
+from sqlalchemy import Column, BigInteger, String, Float, Integer, DateTime, Boolean
 from sqlalchemy.sql import func
 from src.database.core import Base
 
@@ -11,13 +11,18 @@ class User(Base):
     
     balance_inr = Column(Float, default=0.0)
     balance_usd = Column(Float, default=0.0)
+    
+    # Restored missing verification and referral columns
+    is_verified = Column(Boolean, default=False, index=True)
+    referred_by = Column(BigInteger, index=True, nullable=True)
+    
     referral_count = Column(Integer, default=0)
     referral_earnings = Column(Float, default=0.0)
     total_purchases = Column(Integer, default=0)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    # Added to track active users (automatically updates on any row modification)
     last_active = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
 
 class Transaction(Base):
     __tablename__ = "transactions"
