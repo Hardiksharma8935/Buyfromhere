@@ -65,7 +65,10 @@ async def buy_option_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     await query.edit_message_text(f"✅ **Purchase Successful!**\n\nYour access link for **{group['name']}**:\n{invite.invite_link}\n\n⚠️ *One-time use only.*", parse_mode="Markdown")
                 except Exception as e:
                     logger.error(f"Invite error: {e}")
-                    await query.edit_message_text("✅ Payment deducted, but failed to generate link. Contact Admin.")
+                    # REFUND LOGIC
+                    db_user.balance_inr += price_inr
+                    await session.commit()
+                    await query.edit_message_text("❌ **Link Generation Failed!**\n\nDon't worry, your payment of ₹{} has been **refunded to your wallet**.".format(price_inr), parse_mode="Markdown")
             else:
                 await query.edit_message_text("❌ **Insufficient wallet balance.**\nPlease deposit funds to continue.", reply_markup=PremiumUI.deposit_to_wallet(), parse_mode="Markdown")
         return END
@@ -206,6 +209,7 @@ async def admin_buy_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         data_parts = query.data.split("_")
         action = data_parts[1]
+        
         if action == "app":
             group_id = data_parts[2]
             user_id = int(data_parts[3])
@@ -228,12 +232,25 @@ async def admin_buy_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.edit_message_text(f"{query.message.text}\n\n✅ APPROVED & LINK SENT")
             except Exception as e:
                 logger.error(f"Invite Link Error: {e}")
-                await context.bot.send_message(settings.owner_id, f"❌ Failed to generate link for user {user_id}. Error: {e}")
-                await query.edit_message_text(f"{query.message.text}\n\n❌ FAILED TO GEN LINK")
+                # REFUND LOGIC ON INVITE FAILURE
+                async with AsyncSessionLocal() as session:
+                    user = await session.execute(select(User).where(User.telegram_id == user_id))
+                    db_user = user.scalar_one_or_none()
+                    if db_user:
+                        db_user.balance_inr += group['price']
+                        await session.commit()
+                        
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=f"❌ **Failed to generate link for {group['name']}**.\n\n💰 Don't worry, **₹{group['price']} has been credited to your wallet**. You can use it to try again or buy another group.",
+                    parse_mode="Markdown"
+                )
+                await query.edit_message_text(f"{query.message.text}\n\n⚠️ LINK FAILED - REFUNDED TO USER WALLET")
+                
         elif action == "rej":
             user_id = int(data_parts[2])
             await context.bot.send_message(chat_id=user_id, text="❌ **Purchase Rejected.** Contact Admin.")
             await query.edit_message_text(f"{query.message.text}\n\n❌ REJECTED")
     except Exception as e:
         logger.error(f"Admin Action Crash: {e}")
-        
+                    
