@@ -15,7 +15,10 @@ from src.handlers.buy import (
     buy_choose_currency, buy_process_method, buy_crypto_coin_selected, 
     buy_receive_gc_code, buy_ask_proof, buy_receive_proof, admin_buy_action
 )
-from src.handlers.admin import start_broadcast, receive_broadcast, add_balance, remove_balance
+from src.handlers.admin import (
+    start_broadcast, receive_broadcast, confirm_broadcast, 
+    total_users, add_balance, remove_balance
+)
 from src.utils.states import *
 from src.groups_config import GROUPS
 from src.database.models import User, Transaction
@@ -84,14 +87,28 @@ def main():
     app = Application.builder().token(settings.bot_token.get_secret_value()).post_init(post_init).build()
     app.add_error_handler(error_handler)
     
-    nav_buttons_regex = "^(👤 Profile|🛒 Buy Groups|🎬 Demo|📢 Main Channel|💬 Contact Admin|💰 Deposit to Wallet)$"
+    # Strictly matching the unaltered Reply Keyboard strings
+    nav_buttons_regex = "^(🛒 Buy Groups|👤 Profile|🎬 Demo|📢 Main Channel|💬 Contact Admin|💰 Deposit to Wallet)$"
 
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
 
+    # --- ADMIN HANDLERS ---
+    app.add_handler(CommandHandler("totalusers", total_users))
     app.add_handler(CommandHandler("addbalance", add_balance))
     app.add_handler(CommandHandler("removebalance", remove_balance))
 
+    broadcast_handler = ConversationHandler(
+        entry_points=[CommandHandler("broadcast", start_broadcast)],
+        states={
+            BROADCAST_WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, receive_broadcast)],
+            BROADCAST_CONFIRM: [CallbackQueryHandler(confirm_broadcast, pattern="^bc_")]
+        },
+        fallbacks=[CommandHandler("cancel", confirm_broadcast)]
+    )
+    app.add_handler(broadcast_handler)
+
+    # --- MAIN COMMANDS ---
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CallbackQueryHandler(verify_captcha, pattern="^captcha_"))
     app.add_handler(MessageHandler(filters.Regex("^👤 Profile$"), handle_profile))
