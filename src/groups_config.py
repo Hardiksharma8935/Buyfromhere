@@ -24,5 +24,6 @@ GROUPS = {
     "g23": {"name": " Mallu cxp ", "price": 199, "usd_price": 5, "stars": 233, "chat_id": "-1003993043440", "demo": "https://t.me/NovaGenesisDevbot?start=BQADAQADEgsAApSw6EY9Id8Bwn9tnhYE"},
     "g24": {"name": "Fimily insect/sleep ", "price": 99, "usd_price": 5, "stars": 133, "chat_id": "-1004306573469", "demo": "https://t.me/NovaGenesisDevbot?start=BQADAQADLRUAAqApCEfKCtKGGyx_mBYE"},
     "g25": {"name": "Public Recording ", "price": 99, "usd_price": 5, "stars": 133, "chat_id": "-1003671332349", "demo": "https://t.me/NovaGenesisDevbot?start=BQADAQADEgwAAotZEUcr9INuQR6W-xYE"},
-    "g26": {"name": " ALL Videos In One  ", "price": 799, "usd_price": 20, "stars": 933, "chat_id": "-1003824613738", "demo": "https://t.me/NovaGenesisDevbot?start=BQADAQADsx0AAqApCEfESBa-l55MIxYE"}
+    "g26": {"name": "SNAPGOD ", "price": 199, "usd_price": 10, "stars": 433, "chat_id": "-1003869662734", "demo": "https://t.me/NovaGenesisDevbot?start=BQADAQADeBcAAotZGUcGPSqB9pwHWBYE"},
+    "g27": {"name": " ALL Videos In One  ", "price": 799, "usd_price": 20, "stars": 933, "chat_id": "-1003824613738", "demo": "https://t.me/NovaGenesisDevbot?start=BQADAQADsx0AAqApCEfESBa-l55MIxYE"}
 }
