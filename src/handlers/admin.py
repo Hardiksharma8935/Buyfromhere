@@ -14,23 +14,19 @@ from src.utils.states import BROADCAST_WAITING, BROADCAST_CONFIRM, END
 logger = logging.getLogger(__name__)
 
 async def total_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Owner only command to view detailed bot statistics."""
     if update.effective_user.id != settings.owner_id:
         return
         
     try:
         async with AsyncSessionLocal() as session:
-            # Total Users
             total_stmt = select(func.count(User.id))
             total_users_count = await session.scalar(total_stmt)
             
-            # Active Users (Last 7 Days)
-            seven_days_ago = datetime.utcnow() - timedelta(days=7)
+            seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
             active_stmt = select(func.count(User.id)).where(User.last_active >= seven_days_ago)
             active_users_count = await session.scalar(active_stmt) or 0
             
-            # Today's New Users
-            today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
             today_stmt = select(func.count(User.id)).where(User.created_at >= today_start)
             today_users_count = await session.scalar(today_stmt) or 0
 
@@ -64,6 +60,54 @@ async def receive_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return BROADCAST_CONFIRM
 
+async def _broadcast_background_task(bot, msg, all_users, status_message):
+    total = len(all_users)
+    delivered = 0
+    failed = 0
+    blocked = 0
+    deleted = 0
+    
+    start_time = datetime.now(timezone.utc)
+    
+    for idx, user_id in enumerate(all_users, 1):
+        try:
+            await msg.copy(chat_id=user_id)
+            delivered += 1
+        except Forbidden:
+            blocked += 1
+        except BadRequest as e:
+            if "not found" in str(e).lower() or "deactivated" in str(e).lower():
+                deleted += 1
+            else:
+                failed += 1
+        except Exception as e:
+            failed += 1
+            logger.error(f"Broadcast Exception for {user_id}: {e}")
+            
+        if idx % 500 == 0:
+            try:
+                await status_message.edit_text(f"📢 Broadcasting...\n\n📤 Sent: {idx} / {total}", parse_mode="Markdown")
+            except Exception:
+                pass
+                
+        await asyncio.sleep(0.05) # Rate limit protection
+                
+    time_taken = (datetime.now(timezone.utc) - start_time).seconds
+    
+    report = (
+        "📊 **Broadcast Report**\n\n"
+        f"👥 **Total Users:** {total:,}\n"
+        f"✅ **Delivered:** {delivered:,}\n"
+        f"❌ **Failed:** {failed:,}\n"
+        f"🚫 **Blocked:** {blocked:,}\n"
+        f"🗑 **Deleted Accounts:** {deleted:,}\n\n"
+        f"⏱ **Time Taken:** {time_taken} Seconds"
+    )
+    try:
+        await status_message.edit_text(report, parse_mode="Markdown")
+    except Exception:
+        await bot.send_message(chat_id=status_message.chat_id, text=report, parse_mode="Markdown")
+
 async def confirm_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -73,9 +117,9 @@ async def confirm_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop('broadcast_msg', None)
         return ConversationHandler.END
         
-    await query.edit_message_text("🔄 **Broadcast starting...**", parse_mode="Markdown")
-    
+    status_msg = await query.edit_message_text("🔄 **Broadcast starting...**", parse_mode="Markdown")
     msg = context.user_data.get('broadcast_msg')
+    
     if not msg:
         await query.message.reply_text("❌ Error: Message data lost.")
         return ConversationHandler.END
@@ -85,47 +129,12 @@ async def confirm_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = await session.execute(users_stmt)
         all_users = result.scalars().all()
         
-    total = len(all_users)
-    delivered = 0
-    failed = 0
-    blocked = 0
-    deleted = 0
+    # Start the broadcast securely in the background
+    asyncio.create_task(_broadcast_background_task(context.bot, msg, all_users, status_msg))
     
-    start_time = datetime.utcnow()
-    
-    for user_id in all_users:
-        try:
-            await msg.copy(chat_id=user_id)
-            delivered += 1
-            await asyncio.sleep(0.05) # Rate limit protection (20 msgs/sec max safely)
-        except Forbidden:
-            blocked += 1
-        except BadRequest as e:
-            if "not found" in str(e).lower() or "deactivated" in str(e).lower():
-                deleted += 1
-            else:
-                failed += 1
-                logger.error(f"Broadcast BadRequest for {user_id}: {e}")
-        except Exception as e:
-            failed += 1
-            logger.error(f"Broadcast Exception for {user_id}: {e}")
-                
-    time_taken = (datetime.utcnow() - start_time).seconds
-    
-    report = (
-        "📊 **Broadcast Report**\n\n"
-        f"👥 **Total Users:** {total:,}\n\n"
-        f"✅ **Delivered:** {delivered:,}\n"
-        f"❌ **Failed:** {failed:,}\n"
-        f"🚫 **Blocked:** {blocked:,}\n"
-        f"🗑 **Deleted Accounts:** {deleted:,}\n\n"
-        f"⏱ **Time Taken:** {time_taken} Seconds"
-    )
-    await query.message.reply_text(report, parse_mode="Markdown")
     context.user_data.pop('broadcast_msg', None)
     return ConversationHandler.END
 
-# Existing balance commands logic preserved
 async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != settings.owner_id: return
     try:
@@ -139,7 +148,7 @@ async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await session.commit()
                 await update.message.reply_text(f"✅ Added {amount} INR to {user_id}.")
                 await context.bot.send_message(chat_id=user_id, text=f"💰 Admin added {amount} INR to your wallet.")
-    except Exception as e:
+    except Exception:
         await update.message.reply_text("Usage: /addbalance <user_id> <amount>")
 
 async def remove_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -154,6 +163,6 @@ async def remove_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 db_user.balance_inr = max(0, db_user.balance_inr - amount)
                 await session.commit()
                 await update.message.reply_text(f"✅ Removed {amount} INR from {user_id}.")
-    except Exception as e:
+    except Exception:
         await update.message.reply_text("Usage: /removebalance <user_id> <amount>")
         
