@@ -1,4 +1,5 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+import urllib.parse
 from src.groups_config import GROUPS
 
 class PremiumUI:
@@ -48,7 +49,7 @@ class PremiumUI:
     @staticmethod
     def crypto_selection(prefix="crypto") -> InlineKeyboardMarkup:
         return InlineKeyboardMarkup([
-            [InlineKeyboardButton("💵 USDT (BEP20)", callback_data=f"{prefix}_USDT"), InlineKeyboardButton("₿ BTC", callback_data=f"{prefix}_BTC")],
+            [InlineKeyboardButton("💵 USDT", callback_data=f"{prefix}_USDT"), InlineKeyboardButton("₿ BTC", callback_data=f"{prefix}_BTC")],
             [InlineKeyboardButton("Ξ ETH", callback_data=f"{prefix}_ETH"), InlineKeyboardButton("◎ SOL", callback_data=f"{prefix}_SOL")],
             PremiumUI.cancel_inline()
         ])
@@ -79,7 +80,7 @@ class PremiumUI:
 
     @staticmethod
     def group_list() -> InlineKeyboardMarkup:
-        keyboard = [[InlineKeyboardButton(f"{v['name']} - ₹{v['price']} | ${v['usd_price']}", callback_data=f"buy_sel_{k}")] for k, v in GROUPS.items()]
+        keyboard = [[InlineKeyboardButton(f"📋 {v['name']} - ₹{v['price']} | ${v['usd_price']}", callback_data=f"buy_sel_{k}")] for k, v in GROUPS.items()]
         keyboard.append(PremiumUI.cancel_inline())
         return InlineKeyboardMarkup(keyboard)
 
@@ -93,5 +94,14 @@ class PremiumUI:
         return InlineKeyboardMarkup([
             [InlineKeyboardButton("✅ Confirm", callback_data="bc_confirm")],
             [InlineKeyboardButton("❌ Cancel", callback_data="bc_cancel")]
+        ])
+
+    @staticmethod
+    def link_failed_recovery(admin_username: str) -> InlineKeyboardMarkup:
+        text = urllib.parse.quote("Link issue - please send my group manually")
+        admin_url = f"https://t.me/{admin_username}?text={text}"
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton("💬 Contact Admin", url=admin_url)],
+            [InlineKeyboardButton("🏠 Main Menu", callback_data="cancel_action")]
         ])
         
