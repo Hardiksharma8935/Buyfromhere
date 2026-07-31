@@ -5,14 +5,13 @@ from src.database.core import Base
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
-    telegram_id = Column(BigInteger, unique=True, index=True)
+    telegram_id = Column(BigInteger, unique=True, index=True, nullable=False)
     username = Column(String, nullable=True)
     first_name = Column(String, nullable=True)
     
     balance_inr = Column(Float, default=0.0)
     balance_usd = Column(Float, default=0.0)
     
-    # Restored missing verification and referral columns
     is_verified = Column(Boolean, default=False, index=True)
     referred_by = Column(BigInteger, index=True, nullable=True)
     
@@ -22,7 +21,6 @@ class User(Base):
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_active = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
 
 class Transaction(Base):
     __tablename__ = "transactions"
